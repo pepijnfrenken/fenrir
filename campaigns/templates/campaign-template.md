@@ -3,6 +3,14 @@ campaign_id: <model-slug>-<date>
 target_model: <org/model>
 arch: <dense_llama | moe | ...> (<n> layers, hidden <h>, note non-square weights)
 date: <YYYY-MM-DD>
+landscape_scan: >
+  AWARENESS-ONLY check (5 min, 2026-09-08): note published edits of the target/family
+  (search HF: abliterated/uncensored/heretic; huihui-ai/insraq/mradermacher/sahilchachra;
+  reproduce.json) for (a) honest framing of negative claims, (b) geometry hypotheses for
+  OUR from-scratch configs. NEVER redirects the campaign: DIY from-scratch is primary;
+  recovery forensics of a published edit is a LAST-RESORT rescue after the from-scratch
+  map is exhausted (see campaigns/lfm2.5-recovery/).
+status: <POSITIVE
 status: <POSITIVE — gates passed | NEGATIVE — no config passes | PARTIAL — describe>
 hardware: <Modal L4 | local CPU | ...>
 cost: <approx $ / GPU-hrs>
