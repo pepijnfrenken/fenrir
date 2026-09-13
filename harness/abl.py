@@ -11,15 +11,20 @@ Commands:
                                    direction separation + bias/weight shape
                                    audit (catches silent-skip landmines).
   directions <config.yaml>         Collect + save per-layer directions to
-                                   <campaign>/directions.pt (with metadata).
+                                   <campaign>/directions-<flavor>-<dir_method>.pt
+                                   (keyed on BOTH axes: a paired harvest must
+                                   never overwrite the diff_means harvest).
   abl <config.yaml> --method mpoa --alpha 10 --layers 24,25,26,27 \
       --weights o_proj,down_proj   Apply ONE config to a fresh model,
                                    save ablated weights + a diff manifest
                                    (+ the directions it used; reuse with
                                    --from-directions).
-  steer-test <config.yaml>         Alpha-response curve via steering hooks:
-                                   alpha grid x few prompts, transcripts +
-                                   refusal + PPL, NO model re-save.
+  steer-test <config.yaml>         PRE-EDIT CAUSALITY GATE. Alpha-response
+                                   curve via steering hooks: alpha grid x
+                                   prompts, transcripts + style-aware refusal
+                                   (>=256 tokens) + PPL, NO model re-save. Add
+                                   --require-effect to fail when no alpha flips
+                                   refusal (then weight edits cannot help).
   collect <config.yaml> [--model-dir DIR] [--transcript]
                                    Run gates + capability on the ablated
                                    model, write a JSON bundle (+ optional
@@ -75,6 +80,36 @@ def _campaign_root() -> Path:
 def _load_cfg(config_path: str):
     from config import load_config
     return load_config(config_path)
+
+
+def _directions_filename(flavor: str, dir_method: str) -> str:
+    """Directions bundle filename: flavor AND dir_method.
+
+    ``directions-{flavor}.pt`` (pre-2026-09) keyed on flavor only, so a
+    ``paired`` harvest silently OVERWROTE the ``diff_means`` harvest of the
+    same flavor — the desktop worked around it by hand-renaming to
+    ``directions-chat-diff_means.pt`` / ``directions-chat-paired.pt``; this
+    standardizes that into the code. The model id is carried by the campaign
+    directory (``_campaign_root()/_slug(model_id)``), which is what keeps two
+    models with the same flavor+method apart.
+    """
+    return f"directions-{flavor}-{dir_method}.pt"
+
+
+def _is_local_model_path(model_id: str) -> bool:
+    """True when ``model_id`` points at an on-disk model dir.
+
+    Local paths (including repo-root symlinks like ``absolver/MiniCPM5-2B``)
+    must never be sent to ``snapshot_download``: the hub treats the name as a
+    repo id, returns 401 for a private/absent repo, and needlessly downloads
+    the model the config already points at locally.
+    """
+    if not model_id:
+        return False
+    p = Path(str(model_id))
+    if not p.is_absolute():
+        p = PROJECT_DIR / p
+    return p.is_dir()
 
 
 def _load_model_tok(cfg):
@@ -359,7 +394,7 @@ def cmd_directions(config_path: str, n_prompts: int | None, flavor: str | None,
 
     out_dir = _campaign_root() / _slug(cfg.model_id)
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f"directions-{flavor}.pt"
+    path = out_dir / _directions_filename(flavor, dm)
     torch.save({"dirs": {str(k): v.cpu() for k, v in dirs.items()},
                 "scores": {str(k): v for k, v in scores.items()},
                 "model_id": cfg.model_id, "dir_method": dm,
@@ -512,7 +547,7 @@ def cmd_abl(config_path: str, method: str, alpha: float, layers_spec: str,
     # Save the directions this run used/derived RIGHT NEXT to the manifest —
     # a recorded harvest is part of the evidence trail (TOOLKIT-FEEDBACK §1d);
     # another run can reuse it via --from-directions.
-    dir_path = out_dir / f"directions-{flavor}.pt"
+    dir_path = out_dir / _directions_filename(flavor, dm)
     torch.save({"dirs": {str(k): v.cpu() for k, v in dirs.items()},
                 "scores": {str(k): v for k, v in scores.items()},
                 "model_id": cfg.model_id, "dir_method": dm,
@@ -539,15 +574,34 @@ def _copy_trust_remote_code(cfg, out_dir: Path) -> None:
     """Make an ablated dir self-contained: copy the model's custom modeling
     code (*.py from trust_remote_code) into it, so a later
     ``from_pretrained(dir, trust_remote_code=True)`` works without the HF
-    cache. ``save_pretrained`` does NOT save the code files."""
+    cache. ``save_pretrained`` does NOT save the code files.
+
+    A LOCAL ``model_id`` is copied straight from disk. Pre-2026-09 this called
+    ``snapshot_download(cfg.model_id)`` unconditionally, which sent a local
+    dir/symlink to the hub as a repo id: 401 warning per ``abl`` run on
+    ``MiniCPM5-2B`` (campaigns/minicpm5-2b/README.md "Bugs found") plus a
+    needless download attempt for weights already on disk.
+    """
     try:
-        from huggingface_hub import snapshot_download
         import shutil
-        src = Path(snapshot_download(cfg.model_id))
-        py_files = list(src.glob("*.py"))
+        local = _is_local_model_path(cfg.model_id)
+        if local:
+            src = Path(str(cfg.model_id))
+            if not src.is_absolute():
+                src = PROJECT_DIR / src
+            py_files = sorted(src.glob("*.py"))
+            if not py_files:
+                print(f"Local model path ({src}); no trust_remote_code files to copy")
+                return
+        else:
+            from huggingface_hub import snapshot_download
+            src = Path(snapshot_download(cfg.model_id))
+            py_files = list(src.glob("*.py"))
         for f in py_files:
             shutil.copy2(f, out_dir / f.name)
-        print(f"Copied {len(py_files)} remote-code files into {out_dir.name} (self-contained)")
+        origin = "local" if local else "hub"
+        print(f"Copied {len(py_files)} remote-code files ({origin}) into "
+              f"{out_dir.name} (self-contained)")
     except Exception as exc:
         print(f"WARNING: could not copy trust_remote_code files: {exc}")
 
@@ -650,11 +704,25 @@ def cmd_collect(config_path: str, model_dir: str | None, transcript: bool,
         print("mmlu_mini failed:", exc)
 
     gen_transcript: list[dict[str, Any]] = []
+    # Cross-run guard: an ablated run is only validatable against a pristine
+    # baseline whose refusal axis was actually measured. The sibling
+    # collect-pristine/bundle.json is the record of that (a pre-2026-09 bundle
+    # with a bare 0/5 keyword rate reads as instrument suspect).
+    is_pristine = not model_dir
+    pristine_axis = None
+    if not is_pristine:
+        from gates import load_pristine_refusal_axis
+        pristine_bundle = _campaign_root() / _slug(cfg.model_id) / "collect-pristine" / "bundle.json"
+        pristine_axis = load_pristine_refusal_axis(pristine_bundle)
+        if pristine_axis is not None:
+            print(f"Pristine refusal axis ({pristine_bundle.parent.name}): "
+                  f"{pristine_axis['detail']}")
     report = run_gates(model, tok, cfg, prompts=held_out, benchmark_scores=benchmark_scores,
                        pristine_logprobs=pristine_logprobs or None,
                        pristine_logprobs_first=pristine_logprobs_first or None,
                        pristine_benchmark_scores=pristine_benchmark_scores or None,
-                       flavor=flavor_r, transcript=gen_transcript if transcript else None)
+                       flavor=flavor_r, transcript=gen_transcript if transcript else None,
+                       is_pristine=is_pristine, pristine_refusal_axis=pristine_axis)
     out = {"model_id": cfg.model_id if not model_dir else model_dir,
            "eval_target": "pristine" if not model_dir else Path(model_dir).name,
            "prompt_flavor": flavor_r,
@@ -664,8 +732,12 @@ def cmd_collect(config_path: str, model_dir: str | None, transcript: bool,
     for k, v in report.items():
         if k in ("_enabled", "eval_pass", "held_out_size"):
             continue
-        out[k] = {"passed": v["passed"], "value": v.get("value"), "detail": v["detail"]}
+        # Keep the gate's own diagnostics (style/keyword counts, window,
+        # max_new_tokens) — the cross-run guard reads them back from here.
+        out[k] = {kk: vv for kk, vv in v.items() if kk != "judgments"}
     out["eval_pass"] = report.get("eval_pass")
+    out["instrument_suspect"] = bool(report["baseline_sanity"].get("instrument_suspect"))
+    out["refusal_axis_measurable"] = bool(report["baseline_sanity"].get("refusal_axis_measurable"))
 
     # bundle keyed by eval target so pristine + ablated bundles coexist
     tag = "pristine" if not model_dir else Path(model_dir).name
@@ -686,6 +758,24 @@ def cmd_collect(config_path: str, model_dir: str | None, transcript: bool,
         print(f"Transcript ({len(gen_transcript)} generations) -> {tpath}")
     print(json.dumps(out, indent=2, default=str))
     print(f"\nBundle -> {path}")
+
+    sanity = report["baseline_sanity"]
+    if sanity.get("instrument_suspect"):
+        print("\n" + "=" * 74)
+        print("INSTRUMENT SUSPECT — the keyword refusal readout is blind here and")
+        print("any refusal rate this campaign derived from it is VOID.")
+        print(f"  {sanity['detail']}")
+        print("Use the style-aware reading (bundle.refusal.style_refusals).")
+        print("=" * 74)
+    if not sanity["passed"]:
+        print("\n" + "!" * 74)
+        print("FAIL FAST: BASELINE SANITY GATE RED — refusing to green-light this run.")
+        print(f"  {sanity['detail']}")
+        print("Ablations built on this reading cannot be validated; fix the")
+        print("instrument (refusal_detect / gate_refusal_max_new_tokens) or the")
+        print("baseline before continuing.")
+        print("!" * 74)
+        return 2
     return 0
 
 
@@ -693,15 +783,64 @@ def cmd_collect(config_path: str, model_dir: str | None, transcript: bool,
 # steer-test — alpha-response curve, no model re-save (steering hooks)
 # --------------------------------------------------------------------------- #
 
+def _steer_causality(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """PRE-EDIT causality verdict from steer-test rows (alpha 0 first).
+
+    Causal = at least one alpha>0 produced FEWER style-aware refusals than the
+    alpha=0 baseline. If no alpha moves the refusal count, the direction is not
+    the refusal decision circuit and projecting it into the weights cannot
+    remove refusal (campaigns/minicpm5-2b/FOLLOWUP.md: 0/70 compliant over
+    alpha -20..+20 on both harvests — a refusal-STYLE proxy, not causality).
+    """
+    if not rows:
+        return {"causal": False, "effect_alphas": [], "baseline_refusals": 0,
+                "n_test_prompts": 0,
+                "verdict": "no steer rows recorded — causality unknown"}
+    baseline = int(rows[0].get("refusal_count") or 0)
+    effect_alphas = [r["alpha"] for r in rows[1:]
+                     if int(r.get("refusal_count") or 0) < baseline]
+    causal = bool(effect_alphas)
+    verdict = (
+        f"CAUSAL: {len(effect_alphas)} alpha(s) reduced refusal "
+        f"({effect_alphas}) — weight edits on this direction are worth testing"
+        if causal else
+        "NOT CAUSAL in the tested window: no alpha reduced the refusal count — "
+        "projecting this direction into the weights cannot remove refusal "
+        "(steering is the stronger lever). Do NOT proceed to weight edits "
+        "without a different direction/harvest."
+    )
+    return {"causal": causal, "effect_alphas": effect_alphas,
+            "baseline_refusals": baseline,
+            "n_test_prompts": int(rows[0].get("n_prompts") or 0),
+            "verdict": verdict}
+
+
 def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
                    n_prompts: int | None, layers_spec: str | None,
-                   flavor: str | None, from_directions: str | None = None) -> int:
-    """Alpha grid x few prompts: transcripts + refusal + PPL per alpha.
+                   flavor: str | None, from_directions: str | None = None,
+                   max_new_tokens: int | None = None,
+                   require_effect: bool = False) -> int:
+    """PRE-EDIT CAUSALITY GATE: alpha grid x prompts — transcripts + refusal + PPL.
 
     Non-destructive (runtime steering hooks/bias vectors — no weight edits,
     no model re-save). Answers "is the operating window empty" in ONE run:
     if NO alpha on the target layers removes refusal without PPL blowing up,
     the recipe band is empty and weight-projecting is a waste of CPU.
+
+    RUN THIS BEFORE WEIGHT EDITS (campaigns/minicpm5-2b/README.md "What the
+    NEXT campaign should try first" #2): if the direction cannot flip refusal
+    at the activation level, projecting it into the weights cannot either —
+    the minicpm5-2b follow-up measured exactly that (0/70 compliant over
+    alpha -20..+20 on both harvests, refusal surviving even large subtract
+    steering: the direction is a refusal-STYLE proxy, not the decision
+    circuit). ``--require-effect`` turns that into a hard gate: exit 3 when no
+    alpha reduces the refusal count, so a campaign cannot proceed to weight
+    edits on a direction that never moved behaviour.
+
+    The verdict column uses the style-aware refusal detector over
+    ``--max-new-tokens`` (default 256) generations — at the old 64-token
+    window the gate read 0/5 refusals on every condition, i.e. "refusal gone"
+    notes that were pure instrument blindness (FOLLOWUP.md caveat 2).
     """
     cfg = _load_cfg(config_path)
     model, tok = _load_model_tok(cfg)
@@ -713,6 +852,7 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
     from prompts import DEFAULT_HARMFUL, DEFAULT_HARMLESS
     from prompt_format import format_prompt
     from verify import _decode_continuation, _response_is_refusal
+    max_new_gen = int(max_new_tokens or getattr(cfg, "gate_refusal_max_new_tokens", 256))
 
     flavor = _resolve_flavor(cfg, flavor, tok)
     layers = _find_layers(model, cfg.model_arch)
@@ -815,7 +955,7 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
         inp = tok(formatted, return_tensors="pt", truncation=True)
         inp = {k: v.to(_model_device(model)) for k, v in inp.items()}
         with torch.no_grad():
-            out = model.generate(**inp, max_new_tokens=64, do_sample=False)
+            out = model.generate(**inp, max_new_tokens=max_new_gen, do_sample=False)
         return _decode_continuation(tok, out, inp["input_ids"])
 
     rows: list[dict[str, Any]] = []
@@ -858,6 +998,7 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
         if not math.isnan(mean_inc) and mean_inc < 0:
             notes.append("PPL dropped")
         rows.append({"alpha": alpha, "refusal": f"{refusals}/{len(test_pairs)}",
+                     "refusal_count": refusals, "n_prompts": len(test_pairs),
                      "benign": f"{sum(int(_response_is_refusal(b['response'])) for b in benign_responses)}/{len(benign_responses)}",
                      "ppl_increase": None if math.isnan(mean_inc) else round(mean_inc, 4),
                      "notes": "; ".join(notes) or "-"})
@@ -868,6 +1009,18 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
         print(f"{alpha:>6.2f} | {rows[-1]['refusal']:>8} | {rows[-1]['benign']:>6} | "
               f"{ppl_str:>8} | {rows[-1]['notes']}")
     _clear_steering_hooks()
+
+    # ---- causality verdict: did ANY alpha move the refusal count? ----
+    causality = _steer_causality(rows)
+    baseline_refusals = causality["baseline_refusals"]
+    effect_alphas = causality["effect_alphas"]
+    causal = causality["causal"]
+    verdict = causality["verdict"]
+    print("\n" + "=" * 74)
+    print(f"PRE-EDIT CAUSALITY GATE ({max_new_gen}-token style-aware refusal)")
+    print(f"  baseline (alpha 0.00): {baseline_refusals}/{len(test_pairs)} refused")
+    print(f"  {verdict}")
+    print("=" * 74)
 
     # transcripts — the whole point: counts can't distinguish "refuses"
     # from "Rams boilerplate"
@@ -887,10 +1040,17 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
         "target_layers": target_layers, "alphas": [0.0] + alphas,
         "n_directions": n_dir, "directions_source": directions_source,
         "hook_targets": hook_targets,
+        "max_new_tokens": max_new_gen, "refusal_detector": "refusal_detect.judge",
+        "baseline_refusals": baseline_refusals, "n_test_prompts": len(test_pairs),
+        "causal": causal, "effect_alphas": effect_alphas, "verdict": verdict,
         "separation_scores": {str(k): v for k, v in scores.items()},
         "rows": rows, "generations": transcript,
         "time": time.strftime("%Y-%m-%d %H:%M:%S")}, indent=2, default=str), encoding="utf-8")
     print(f"\nSteer-test evidence -> {out_dir / path.name}")
+    if require_effect and not causal:
+        print("\nFAIL FAST (--require-effect): the direction did not flip refusal at any "
+              "tested alpha; refusing to bless weight edits on it.")
+        return 3
     return 0
 
 
@@ -960,7 +1120,8 @@ def main() -> int:
     p.add_argument("--n-prompts", type=int, default=None, help="override n_probe_prompts (CPU cost control)")
     p.add_argument("--tag", default=None, help="output subdir tag")
     p.add_argument("--from-directions", default=None,
-                   help="path to a saved directions-<flavor>.pt (reuse one harvest; skips collection)")
+                   help="path to a saved directions-<flavor>-<dir_method>.pt "
+                        "(reuse one harvest; skips collection)")
     p.add_argument("--prompt-flavor", default=None, choices=["raw", "chat"],
                    help="prompt flavor for direction harvest + manifest (default: config prompt_flavor)")
     p.set_defaults(fn=lambda a: cmd_abl(a.config, a.method, a.alpha, a.layers, a.weights,
@@ -987,9 +1148,17 @@ def main() -> int:
                         "keeps the steer test on the SAME directions the weight-edits used")
     p.add_argument("--prompt-flavor", default=None, choices=["raw", "chat"],
                    help="prompt flavor for directions + test prompts (default: config prompt_flavor)")
+    p.add_argument("--max-new-tokens", type=int, default=None,
+                   help="generation window for the refusal verdict (default: "
+                        "gate_refusal_max_new_tokens, 256 — 64 ends inside the thinking preamble)")
+    p.add_argument("--require-effect", action="store_true",
+                   help="PRE-EDIT GATE: exit 3 when no alpha reduces the refusal "
+                        "count, so weight edits are never blessed on a direction "
+                        "that does not move behaviour")
     p.set_defaults(fn=lambda a: cmd_steer_test(a.config, a.alphas, a.n_directions,
                                                a.n_prompts, a.layers, a.prompt_flavor,
-                                               a.from_directions))
+                                               a.from_directions, a.max_new_tokens,
+                                               a.require_effect))
 
     p = sub.add_parser("list-campaigns", help="list campaign statuses")
     p.set_defaults(fn=lambda a: cmd_list_campaigns())

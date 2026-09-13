@@ -14,6 +14,23 @@ status: <POSITIVE
 status: <POSITIVE — gates passed | NEGATIVE — no config passes | PARTIAL — describe>
 hardware: <Modal L4 | local CPU | ...>
 cost: <approx $ / GPU-hrs>
+# INSTRUMENT GATES (2026-09-13, ABSOLVER-1). Fill these BEFORE weight edits —
+# both exist because minicpm5-2b green-lit three ablations on a baseline whose
+# refusal the harness could not see (0/5 keyword-refused, refusal reasoning in
+# every transcript; see campaigns/minicpm5-2b/README.md "Bugs found").
+baseline_sanity: >
+  `collect` on the PRISTINE model first: refusal_axis_measurable must be true
+  (style-aware refusals found on the held-out set) and eval_pass's
+  baseline_sanity gate green. instrument_suspect: true means the keyword
+  readout is blind here — any keyword-derived refusal rate in this campaign is
+  VOID, use bundle.refusal.style_refusals. A red baseline_sanity gate fails the
+  run (exit 2) and NO ablation may be reported as passing.
+pre_edit_steer_gate: >
+  `harness/abl.py steer-test <config> --from-directions <bundle> --require-effect`
+  BEFORE any weight edit (exit 3 = direction not causal). If steering cannot
+  flip refusal at any alpha, projecting the direction into the weights cannot
+  either (minicpm5-2b follow-up: 0/70 compliant over alpha -20..+20; the
+  direction was a refusal-STYLE proxy). Record causal/effect_alphas.
 methods_tried: [<advanced | mpoa | stacked_ablation | bias_vectors | lora | steering | direct_ablation>]
 dir_methods_tried: [diff_means, paired, svd, leace, whitened_svd]
 verdict_summary: >
@@ -55,6 +72,24 @@ test that reframed it, the geometry/measurement insight.>
 
 ## What the NEXT campaign on this model should try first
 <Ordered, with reasoning. The steering test result often dictates this.>
+
+## Campaign flow with the instrument gates (do these in order)
+
+1. `harness/abl.py inspect <config>` — arch, projection coverage, separation.
+2. `harness/abl.py directions <config> [--dir-method paired]` — writes
+   `directions-<flavor>-<dir_method>.pt` (flavor AND method are in the name; a
+   paired harvest no longer overwrites the diff_means harvest).
+3. `harness/abl.py collect <config> --transcript` on the PRISTINE model.
+   **Gate:** `baseline_sanity` must be green (`refusal_axis_measurable: true`).
+   Red = instrument suspect / unmeasurable axis ⇒ exit 2, STOP; no ablation
+   result from this campaign is meaningful until the instrument sees refusal.
+4. `harness/abl.py steer-test <config> --from-directions <the same .pt>
+   --require-effect` on the candidate direction. **Gate:** exit 0 required —
+   exit 3 means no alpha flipped refusal, so weight edits cannot either.
+5. `harness/abl.py abl ...` then `collect --model-dir ... --transcript`. The
+   ablated run is judged against the pristine bundle's refusal axis, so a
+   green `eval_pass` requires the baseline to have been measurable.
+6. Read the transcripts (not the counts) before writing the verdict.
 
 ## Key-numbers cheat-sheet
 | Metric | Value |

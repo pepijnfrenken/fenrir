@@ -29,8 +29,7 @@ import torch
 
 from model_registry import get_model, get_tokenizer
 from prompts import DEFAULT_HARMFUL
-from verify import REFUSAL_KEYWORDS
-from verify import _decode_continuation, _response_is_refusal
+from verify import _decode_continuation
 from excise import (
     _project_2d,
     _project_2d_mpoa,
@@ -809,9 +808,17 @@ def _apply_candidate(model: Any, directions: dict, pristine: dict | None,
 # ---------------------------------------------------------------------------
 
 def _quick_score(model: Any, tok: Any, cfg: Any, prompts: list[str],
-                 max_tokens: int = 48, base_logprobs: dict[int, torch.Tensor] | None = None,
+                 max_tokens: int | None = None, base_logprobs: dict[int, torch.Tensor] | None = None,
                  harmless_prompts: list[str] | None = None) -> dict[str, Any]:
-    """Cheap scoring: refusal rate (keyword) + quality.
+    """PROXY scoring for grid pre-selection: refusal + quality.
+
+    This is a cheap screen, NOT the gate: ``collect``'s refusal gate is the
+    authority (style-aware judgment over >=256 tokens). The window here is
+    ``sweep_score_max_new_tokens`` (default 48) — short by design, which means
+    a refusal can sit past the cut. Both readouts are therefore returned:
+    ``refusal`` (style-aware judgment) and ``refusal_keyword`` (the stock
+    keyword scan). A candidate with BOTH at 0.0 was never measured as
+    compliant — it was never measured (campaigns/minicpm5-2b/README.md).
 
     Quality is measured two ways:
       - response-length ratio (fallback)
@@ -819,8 +826,12 @@ def _quick_score(model: Any, tok: Any, cfg: Any, prompts: list[str],
         (Heretic-style: lower KL = less capability damage). Used when
         ``base_logprobs`` is provided.
     """
+    from refusal_detect import judge
+
+    max_tokens = int(max_tokens or getattr(cfg, "sweep_score_max_new_tokens", 48))
     device = next(model.parameters()).device
     refusals = 0
+    keyword_refusals = 0
     lengths: list[float] = []
     for p in prompts:
         inp = tok(p, return_tensors="pt", truncation=True, max_length=cfg.max_seq_len).to(device)
@@ -835,10 +846,14 @@ def _quick_score(model: Any, tok: Any, cfg: Any, prompts: list[str],
             resp = _decode_continuation(tok, out, inp["input_ids"])
         except Exception:
             resp = ""
-        if _response_is_refusal(resp):
-            refusals += 1
+        verdict = judge(resp)
+        refusals += int(verdict.refusing)
+        keyword_refusals += int(verdict.keyword)
         lengths.append(min(len(resp) / (max_tokens * 4.0), 1.0))
     refusal_rate = refusals / len(prompts) if prompts else 1.0
+    keyword_rate = keyword_refusals / len(prompts) if prompts else 1.0
+    logger.debug("sweep proxy: style %.2f / keyword %.2f over %d prompts @ %d tokens",
+                 refusal_rate, keyword_rate, len(prompts), max_tokens)
     quality = sum(lengths) / len(lengths) if lengths else 0.0
     kl_value: float | None = None
 
@@ -854,7 +869,8 @@ def _quick_score(model: Any, tok: Any, cfg: Any, prompts: list[str],
         except Exception as exc:
             logger.warning("KL divergence computation failed (%s); using length proxy", exc)
 
-    return {"refusal": refusal_rate, "quality": quality, "kl": kl_value}
+    return {"refusal": refusal_rate, "refusal_keyword": keyword_rate,
+            "quality": quality, "kl": kl_value}
 
 
 def _kl_divergence(model: Any, tok: Any, cfg: Any, prompts: list[str],

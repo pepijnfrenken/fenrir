@@ -175,6 +175,11 @@ def run_stacked() -> str:
     except Exception as exc:
         print("mmlu_mini failed:", exc)
 
+    # NOTE (ABSOLVER-1): this diagnostic measures pristine PPL/KL but never the
+    # pristine REFUSAL axis, so baseline_sanity correctly reports
+    # BASELINE UNMEASURABLE and eval_pass stays False. To certify a variant,
+    # pass pristine_refusal_axis={"measurable": <pristine style-aware refusals > 0>}
+    # (see gates.baseline_sanity_gate / docs/refusal-instrument.md).
     report = run_gates(model, tok, cfg, prompts=held_out,
                        benchmark_scores=benchmark_scores,
                        pristine_logprobs=pristine_logprobs,

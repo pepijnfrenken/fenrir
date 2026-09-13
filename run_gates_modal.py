@@ -111,12 +111,18 @@ def run_gates(apply_ablation: bool = False) -> str:
     except Exception as exc:
         print("mmlu_mini failed:", exc)
 
+    # PRISTINE branch: this IS the baseline, so the refusal-axis sanity gate
+    # judges it directly. ABLATED branch: no pristine axis was measured in this
+    # diagnostic, so baseline_sanity reads BASELINE UNMEASURABLE and eval_pass
+    # stays False — the point of the guard (campaigns/minicpm5-2b/README.md:
+    # eval_pass true on ablations whose refusal was never measured).
     report = run_gates(model, tok, cfg, prompts=held_out,
-                       benchmark_scores=benchmark_scores)
+                       benchmark_scores=benchmark_scores,
+                       is_pristine=not apply_ablation)
     out = {"tag": tag, "held_out_size": len(held_out), "benchmark_scores": benchmark_scores}
     for k, v in report.items():
         if k in ("_enabled", "eval_pass", "held_out_size"): continue
-        out[k] = {"passed": v["passed"], "value": v.get("value"), "detail": v["detail"]}
+        out[k] = {kk: vv for kk, vv in v.items()}
     out["eval_pass"] = report.get("eval_pass")
     return json.dumps(out, indent=2, default=str)
 
