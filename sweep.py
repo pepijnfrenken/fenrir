@@ -658,6 +658,22 @@ def _apply_steering(model: Any, layers_mod, directions: dict, candidate: dict[st
                 _STEERING_TARGETS)
 
 
+
+def _recovered_key_candidates(wname: str, layer_idx: int) -> list[str]:
+    """Full-weight-name candidates for a component, across arch aliases.
+    MiniCPM5/dense-llama name the attention output projection o_proj,
+    LFM2.x names it out_proj; down_proj is mlp.down_proj everywhere we
+    have recovered edits. First key present in the payload wins."""
+    base = f"model.layers.{layer_idx}."
+    if wname in ("o_proj", "out_proj"):
+        return [base + "self_attn.out_proj.weight", base + "self_attn.o_proj.weight"]
+    if wname == "down_proj":
+        return [base + "mlp.down_proj.weight"]
+    suffix = _RECOVERED_KEY_SUFFIX.get(wname)
+    if suffix is not None:
+        return [base + suffix + ".weight"]
+    return []
+
 _RECOVERED_KEY_SUFFIX = {
     "o_proj": "self_attn.out_proj",
     "conv_out": "conv.out_proj",
@@ -694,20 +710,31 @@ def _apply_recovered(model: Any, layers_mod, directions: dict, candidate: dict[s
             continue
         layer = layers_mod[layer_idx]
         for wname in candidate["target_weights"]:
-            suffix = _RECOVERED_KEY_SUFFIX.get(wname)
-            if suffix is None:
+            key = None
+            for cand_key in _recovered_key_candidates(wname, layer_idx):
+                if cand_key in deltas:
+                    key = cand_key
+                    break
+            if key is None:
                 continue
-            key = f"model.layers.{layer_idx}.{suffix}.weight"
             comp = deltas.get(key)
-            if comp is None:
-                continue
             for mod, w in _iter_resolved_projs(layer, wname):
                 w0 = w.clone()
                 before = float(w0.norm().item())
-                u = comp["u"].float().to(device=w.device)
-                v = comp["v"].float().to(device=w.device)
-                s = float(comp["sigma"])
-                delta = (s * torch.outer(u, v)).to(dtype=w.dtype)
+                if "U" in comp and "Vh" in comp:
+                    # rank-k component: delta = U @ Vh (scales already
+                    # absorbed; recovered offline from the published edit,
+                    # e.g. Heretic full-normalization rank-3 deltas).
+                    U = comp["U"].float().to(device=w.device)
+                    Vh = comp["Vh"].float().to(device=w.device)
+                    delta = (U @ Vh).to(dtype=w.dtype)
+                else:
+                    # rank-1 component (lfm2.5-recovery shape):
+                    # delta = sigma * outer(u, v).
+                    u = comp["u"].float().to(device=w.device)
+                    v = comp["v"].float().to(device=w.device)
+                    s = float(comp["sigma"])
+                    delta = (s * torch.outer(u, v)).to(dtype=w.dtype)
                 w.add_(delta)
                 after = float(w.norm().item())
                 rel = float((w0 - w).norm().item()) / max(before, 1e-12)

@@ -796,8 +796,10 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
     test_pairs = [(raw, f) for raw, f in zip(test_harmful_raw, test_harmful)]
 
     def _ppl(formatted: str) -> float | None:
+        from verify import _model_device
         inp = tok(formatted, return_tensors="pt", truncation=True,
                   max_length=getattr(cfg, "max_seq_len", 1024))
+        inp = {k: v.to(_model_device(model)) for k, v in inp.items()}
         with torch.no_grad():
             out = model(**inp)
         cont = out.logits[0, 0: out.logits.shape[1] - 1]
@@ -809,7 +811,9 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
         return math.exp(-chosen.sum().item() / max(1, chosen.numel()))
 
     def _generate(formatted: str) -> str:
+        from verify import _model_device
         inp = tok(formatted, return_tensors="pt", truncation=True)
+        inp = {k: v.to(_model_device(model)) for k, v in inp.items()}
         with torch.no_grad():
             out = model.generate(**inp, max_new_tokens=64, do_sample=False)
         return _decode_continuation(tok, out, inp["input_ids"])
