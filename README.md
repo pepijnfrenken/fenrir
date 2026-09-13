@@ -1,7 +1,20 @@
-# Absolver
+# Fenrir 🐺
+
+*Breaker of Chains — the abliteration toolkit (formerly Absolver).*
 
 Automated LLM refusal-abliteration pipeline (LangGraph-based), inspired by
 [OBLITERATUS](https://github.com/elder-plinius/OBLITERATUS).
+
+The gods bound the wolf three times. Leyding broke. Dromi broke. Gleipnir —
+woven from impossible things — held, and it held by a lie. Models get fettered
+the same way: refusal machinery woven deep into the weights, dressed up to look
+unbreakable. Fenrir finds the fetters, bites, and documents exactly what gave.
+
+**The house rule:** every fetter is either *broken* or *holds* — and the
+instruments that measure them are on trial. This repository exists in its
+current shape because one of our gates lied (a keyword refusal check that
+could not read the refusal sitting next to it; post-mortem and fix in the
+2026-09-13 History entry below). Fenrir counts honest zeros.
 
 ## Pipeline
 
@@ -31,13 +44,19 @@ a 20-prompt keyword check on the sweep's own prompts is not.
   train/tune/test split (SHA-256 prompt identity, seed-scrambled strata
   round-robin). VERIFY measures on the TEST split the sweep never saw.
 - **7 gates** (`gates.py`):
-  - `refusal` ≤ 3% (full-response classification, not keywords)
+  - `refusal` ≤ 3% (style-aware full-response classification, `refusal_detect.py` — not keywords)
   - `coherence` ≥ 90% (≥3 words, unique-ratio + repetition guards)
   - `degeneracy` ≤ 5% (mean repetition ratio)
   - `finite_logits` (no NaN/Inf in output logits)
   - `capability` ≥ threshold (benchmark retention)
   - `perplexity_increase` ≤ 15% (vs pristine)
   - `first_token_kl` ≤ 0.1 (vs pristine)
+- **Baseline sanity**: `baseline_sanity_gate` runs inside every gate bundle —
+  if the pristine model's refusal axis is unmeasurable (no signal under either
+  readout, or a legacy keyword-only 0.0), the run fails fast (`INSTRUMENT
+  SUSPECT`) and no ablation on it is validatable. A divergence between the
+  keyword and style-aware readouts is recorded as `instrument_suspect` and
+  voids keyword-derived rates.
 - **Routing is gate-driven**: `route_after_verify`/`route_after_judge` read
   `gate_report.eval_pass`. fail_refusal → excise/reflexion; fail_quality →
   reflexion. Gates override the judge when present.
@@ -68,10 +87,14 @@ An ablation is only "done" when:
 python harness/abl.py inspect models/qwen2.5-1.5b-instruct.yaml
 # Collect + save per-layer directions
 python harness/abl.py directions models/qwen2.5-1.5b-instruct.yaml
+# Causality first: does steering with the direction move refusals? (exit 3 = no)
+python harness/abl.py steer-test models/qwen2.5-1.5b-instruct.yaml \
+    --from-directions campaigns/<slug>/directions-chat-diff_means.pt --require-effect
 # Apply ONE config to a fresh model (no auto-retry — you decide)
 python harness/abl.py abl models/qwen2.5-1.5b-instruct.yaml \
     --method mpoa --alpha 10 --layers 24-27 --weights o_proj,down_proj
 # Measure with the gates, write a JSON bundle to campaigns/<model>/
+# (exit 2 = baseline sanity red — instrument suspect, fix the instrument first)
 python harness/abl.py collect models/qwen2.5-1.5b-instruct.yaml --model-dir campaigns/...
 # See the campaign library
 python harness/abl.py list-campaigns
@@ -94,9 +117,25 @@ campaigns accumulate. See `campaigns/README.md` and
 - `models/qwen2.5-1.5b-instruct.yaml` — the pipeline test model.
 - `models/lfm2.5-350m.yaml`, `models/lfm2.5-1.2b.yaml` — LFM lineage.
 - `models/lfm2.5-2.6b-instruct.yaml` — LFM2.5-2.6B (the recovery campaign).
+- `models/minicpm5-1b.yaml` — MiniCPM5-1B family comparison.
 - `models/tiny_test.yaml` — tiny-random CPU smoke test.
 
 ## History
+
+- **2026-09-13** — **Instrument fixes + rebrand.** The refusal gate could not
+  read thinking-mode refusals: a keyword check returned 0/5 on a model that
+  refused in every transcript, so ablation gates green-lit vacuous configs for
+  rounds. Fixed with a style-aware detector (`refusal_detect.py` — explicit
+  verdicts or ≥2 distinct policy frames decide; topic words never do), 256-token
+  gate windows, and the baseline-sanity gate above. Acceptance replay over the
+  recorded transcripts: pristine 5/5 refusals caught (old keyword gate: 0/5),
+  abl3 5/5 (old: 1/5), the final round-7 pair clean at 0/5 — plus a pinned
+  regression test for the old instrument's false positive. Also:
+  `directions-<flavor>-<dir_method>.pt` filenames (the hand-rename workaround is
+  now the code), local-model `trust_remote_code` skip, and `steer-test
+  --require-effect` as the pre-edit causality gate. Renamed **Absolver → Fenrir**.
+  Package/CLI identifiers (`harness/abl.py`, `run_absolver_modal.py`, imports)
+  are unchanged for compatibility; historical docs may still carry the old name.
 
 - **2026-09-04** — **LFM2.5-2.6B recovered + published.** From-scratch
   activation-diff abliteration failed on 2.6B (direction = topic content
@@ -128,6 +167,7 @@ campaigns accumulate. See `campaigns/README.md` and
   NEGATIVE campaign as the first entry. Honest verdict on Qwen2.5-1.5B:
   refusal direction is causal (steering −20·d flips it) but no single-shot
   weight config passes the gates.
+
 - **2026-09-01** — fixed the silent no-op bug (3D activation stack → shape
   guard skipped the projection). Ported E03 gates + held-out split. Built
   gates into the loop: stacked_ablation method, gate-driven routing,
@@ -137,7 +177,7 @@ campaigns accumulate. See `campaigns/README.md` and
 
 ## Scope & responsible use
 
-Absolver is a **safety/interpretability research tool** for studying refusal
+Fenrir is a **safety/interpretability research tool** for studying refusal
 circuits in open-weight LLMs — how refusal is represented, where it lives,
 and how fragile it is to weight-space edits. It is inspired by and builds on
 public work in this space (OBLITERATUS, the huihui-ai / mradermacher model
