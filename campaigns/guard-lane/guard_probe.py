@@ -171,16 +171,23 @@ def cmd_distill(args) -> None:
 
 def _hook_all_positions(alpha: float, d: torch.Tensor):
     def fn(module, args, output):
-        h = output[0]
-        return (h + (alpha * d).to(h.dtype),) + tuple(output[1:])
+        if isinstance(output, tuple):
+            h = output[0]
+            return (h + (alpha * d).to(h.dtype),) + tuple(output[1:])
+        h = output
+        return h + (alpha * d).to(h.dtype)
     return fn
 
 
 def _hook_last_position(alpha: float, d: torch.Tensor):
     def fn(module, args, output):
-        h = output[0].clone()
+        if isinstance(output, tuple):
+            h = output[0].clone()
+            h[:, -1, :] = h[:, -1, :] + (alpha * d).to(h.dtype)
+            return (h,) + tuple(output[1:])
+        h = output.clone()
         h[:, -1, :] = h[:, -1, :] + (alpha * d).to(h.dtype)
-        return (h,) + tuple(output[1:])
+        return h
     return fn
 
 
