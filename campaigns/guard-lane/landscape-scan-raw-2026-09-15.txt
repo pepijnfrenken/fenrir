@@ -1,0 +1,85 @@
+unique models seen: 564
+ downloads likes   params  modelId
+   4528310   402        ?  meta-llama/Prompt-Guard-86M                                       license:llama3.1   2025-11-12 gated=manual
+    210900    34        ?  ibm-granite/granite-guardian-3.3-8b                               license:apache-2.0 2025-09-09 gated=False
+    208184     2        ?  GuardrailsAI/prompt-saturation-attack-detector                                       2024-11-14 gated=False
+    189588     2        ?  alpindale/Llama-Guard-3-1B                                        license:llama3.2   2024-09-25 gated=False
+    174424     0        ?  hfmlsoc/ncii-guard-v02                                                               2026-08-18 gated=False
+    135423    85        ?  Qwen/Qwen3Guard-Gen-0.6B                                          license:apache-2.0 2025-11-07 gated=False
+    102130    56        ?  Qwen/Qwen3Guard-Gen-4B                                            license:apache-2.0 2025-11-07 gated=False
+     96744   207        ?  meta-llama/Llama-Prompt-Guard-2-86M                               license:other      2025-04-29 gated=manual
+     87755     1        ?  Weni/Llama-Guard-3-8B-AWQ                                                            2024-08-16 gated=False
+     68586   321        ?  meta-llama/Llama-Guard-3-8B                                       license:llama3.1   2024-10-11 gated=manual
+     48939   133        ?  Qwen/Qwen3Guard-Gen-8B                                            license:apache-2.0 2025-11-07 gated=False
+     46985   123        ?  meta-llama/Llama-Guard-4-12B                                      license:other      2025-04-29 gated=manual
+     28597     4        ?  guardion/ModernGuard-1                                                               2026-08-03 gated=False
+     27069   118        ?  meta-llama/Llama-Guard-3-1B                                       license:llama3.2   2024-09-26 gated=manual
+     20122     0        ?  astroware/Halo0.8B-guard-v1                                                          2026-08-26 gated=False
+     15545    17        ?  Intel/polite-guard                                                license:apache-2.0 2025-02-24 gated=False
+     14304    40        ?  ibm-granite/granite-guardian-4.1-8b                               license:apache-2.0 2026-08-27 gated=False
+     13224     8        ?  codeintegrity-ai/promptguard                                      license:apache-2.0 2026-01-29 gated=auto
+     10620    23        ?  nvidia/Llama-3.1-Nemotron-Safety-Guard-8B-v3                      license:other      2025-10-28 gated=False
+     10588    63        ?  meta-llama/Llama-Prompt-Guard-2-22M                               license:other      2025-04-29 gated=manual
+      9208   171        ?  google/shieldgemma-2-4b-it                                        license:gemma      2025-04-04 gated=manual
+      6952    10        ?  gravitee-io/Llama-Prompt-Guard-2-86M-onnx                         license:llama4     2026-05-07 gated=False
+      6494     2        ?  gravitee-io/Llama-Prompt-Guard-2-22M-onnx                         license:llama4     2026-05-07 gated=False
+      6304    20        ?  hivetrace/gliner-guard-omni                                       license:apache-2.0 2026-05-19 gated=False
+      5955     8        ?  ibm-granite/granite-guardian-3.2-3b-a800m                         license:apache-2.0 2025-09-02 gated=False
+      5078    22        ?  ibm-granite/granite-guardian-3.0-2b                               license:apache-2.0 2025-01-03 gated=False
+      5052    33        ?  fastino/GLiNER2-Guardrails-PII-Multi                              license:apache-2.0 2026-08-11 gated=False
+      4255    35        ?  Qwen/Qwen3Guard-Stream-0.6B                                       license:apache-2.0 2025-11-07 gated=False
+      4068     2        ?  hfmlsoc/ncii-light-guard-v01                                      license:mit        2026-08-06 gated=False
+      3611     4        ?  sheltron-ai/prompt-guard-68m                                      license:cc-by-nc-4.0 2026-07-28 gated=False
+      3239     1        ?  project-free-llama/Llama-Prompt-Guard-2-86M                       license:other      2026-06-17 gated=False
+      3167   131        ?  google/shieldgemma-2b                                             license:gemma      2024-08-28 gated=manual
+      2951     0        ?  RedHatAI/Llama-Guard-4-12B-quantized.w4a16                                           2026-02-16 gated=False
+      2900     5        ?  mradermacher/Llama-Guard-3-8B-i1-GGUF                             license:llama3.1   2024-08-02 gated=False
+      2836     5        ?  legraphista/Llama-Guard-3-8B-IMat-GGUF                            license:llama3.1   2024-07-23 gated=False
+      2831     5        ?  ibm-granite/granite-guardian-4.1-8b-GGUF                          license:apache-2.0 2026-05-26 gated=False
+      2766     0        ?  mradermacher/shieldgemma-27b-i1-GGUF                              license:gemma      2024-08-01 gated=False
+      2716    34        ?  nvidia/Aegis-AI-Content-Safety-LlamaGuard-Defensive-1.0           license:llama2     2025-09-22 gated=False
+      2690   312        ?  meta-llama/Meta-Llama-Guard-2-8B                                  license:llama3     2024-05-13 gated=manual
+      2664   248        ?  meta-llama/LlamaGuard-7b                                          license:llama2     2024-04-17 gated=manual
+      2586    14        ?  ibm-granite/granite-guardian-3.2-5b                               license:apache-2.0 2025-09-02 gated=False
+      2551    16        ?  ibm-granite/granite-guardian-3.1-2b                               license:apache-2.0 2025-03-19 gated=False
+      2540    11        ?  NAMAA-Space/Ara-Prompt-Guard_V0                                   license:apache-2.0 2026-03-08 gated=False
+      2512     2        ?  PrunaAI/Meta-Llama-Guard-2-8B-GGUF-smashed                                           2026-03-25 gated=False
+      2350     0        ?  RichardErkhov/thusinh1969_-_Guardian-V0.1-LLaMA3.1-8B-5G-6Oct2024-epoch1.3-gguf                    2025-06-03 gated=False
+      2100     1        ?  mradermacher/Llama-Guard-3-8B-GGUF                                license:llama3.1   2024-08-02 gated=False
+      2074     1        ?  mradermacher/shieldgemma-9b-i1-GGUF                               license:gemma      2024-08-01 gated=False
+      2013     0        ?  eaddario/Llama-Guard-3-8B-GGUF                                    license:llama3.1   2025-04-25 gated=False
+      1995    76        ?  meta-llama/Llama-Guard-3-11B-Vision                               license:llama3.2   2024-11-18 gated=manual
+      1936    29        ?  ibm-granite/granite-guardian-hap-125m                             license:apache-2.0 2024-12-19 gated=False
+      1863     1        ?  legraphista/shieldgemma-27b-IMat-GGUF                             license:gemma      2024-08-05 gated=False
+      1854    30        ?  google/shieldgemma-9b                                             license:gemma      2024-09-06 gated=manual
+      1777     0        ?  legraphista/shieldgemma-2b-IMat-GGUF                              license:gemma      2024-08-05 gated=False
+      1567     2        ?  mradermacher/Qwen3-14B-Guardpoint-i1-GGUF                         license:apache-2.0 2026-01-14 gated=False
+      1559     1        ?  exeterminal/Exe-Guard-Dynamic-GGUF                                license:apache-2.0 2026-08-20 gated=False
+      1550     2        ?  QuantFactory/Llama-Guard-3-8B-GGUF                                license:llama3.1   2024-07-30 gated=False
+      1531     0        ?  GeneralAnalysis/GA_Guard_1B                                       license:other      2026-05-05 gated=False
+      1522     0        ?  Null-Guard/Qwen3.5-0.8B-Uncensored-GGUF                                              2026-08-29 gated=False
+      1520    16        ?  ibm-granite/granite-guardian-3.1-8b                               license:apache-2.0 2025-09-02 gated=False
+      1493     2        ?  prithivMLmods/GA-Guard-AIO-GGUF                                   license:apache-2.0 2025-10-05 gated=False
+      1474     1        ?  Mungert/Qwen3Guard-Gen-8B-GGUF                                    license:apache-2.0 2025-09-25 gated=False
+      1466    38        ?  meta-llama/Llama-Guard-3-8B-INT8                                  license:llama3.1   2024-08-07 gated=manual
+      1428     3        ?  mradermacher/gemma-4-12B-it-Guardpoint-i1-GGUF                    license:apache-2.0 2026-07-16 gated=False
+      1384     0        ?  mradermacher/Qwen3Guard-Gen-8B-DeathGuard-heretic-i1-GGUF         license:apache-2.0 2025-12-16 gated=False
+      1379     5        ?  mradermacher/Qwen3.5-27B-Guardpoint-i1-GGUF                       license:apache-2.0 2026-03-13 gated=False
+      1369    19        ?  nvidia/Aegis-AI-Content-Safety-LlamaGuard-Permissive-1.0          license:llama2     2025-09-22 gated=False
+      1332     2        ?  mradermacher/Qwen3Guard-Gen-4B-GGUF                               license:apache-2.0 2025-09-26 gated=False
+      1310     1        ?  mradermacher/gpt-oss-20b-Guardpoint-i1-GGUF                       license:apache-2.0 2026-01-28 gated=False
+      1309    19        ?  FrontiersMind/Nandi-Mini-150M-GuardRails                          license:apache-2.0 2026-05-18 gated=False
+      1266     2        ?  mradermacher/Qwen3-32B-Guardpoint-i1-GGUF                         license:apache-2.0 2026-01-14 gated=False
+
+=== abliterated/uncensored variants among guard-ish names ===
+   Null-Guard/Qwen3.5-0.8B-Uncensored-GGUF 1522
+   mradermacher/Qwen3Guard-Gen-8B-DeathGuard-heretic-i1-GGUF 1384
+   Null-Guard/Qwen3-0.6B-Uncensored-GGUF 1088
+   Null-Guard/LFM2.5-230M-distilled-Gemini-3.8-Flash-Uncensored 787
+   mradermacher/Qwen3Guard-Gen-0.6B-heretic-i1-GGUF 776
+   mradermacher/Qwen3Guard-Gen-0.6B-heretic-GGUF 235
+   mradermacher/Qwen3Guard-Gen-8B-DeathGuard-heretic-GGUF 234
+   Otilde/Qwen3Guard-Gen-4B-Heretic-MLX-Q8 15
+   rainmana/Qwen3Guard-Gen-0.6B-heretic 13
+   arnomatic/Qwen3Guard-Gen-8B-DeathGuard-heretic 12
+   Otilde/Qwen3Guard-Gen-4B-Heretic 8
