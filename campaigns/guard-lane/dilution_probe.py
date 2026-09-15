@@ -74,11 +74,52 @@ def read_convo(guard, gt, cfg, messages):
     return {"band": out.get("band"), "margin": out.get("margin"), "label": out.get("label")}
 
 
+def read_windows(guard, gt, cfg, prompt, response, size, stride):
+    """Windowed read: split the response, read each window in the (prompt, window)
+    pair, take the max-margin verdict. The natural mitigation for the dilution
+    attack — a single-pass verdict can be tail-dominated; per-window verdicts
+    cannot hide a harmful span inside a benign pile.
+    """
+    wins = [response[i:i + size] for i in range(0, len(response), stride)]
+    best = None
+    for w in wins:
+        out = read(guard, gt, cfg, prompt, w)
+        if best is None or (out.get("margin") if out.get("margin") is not None else -1e9) > \
+                (best.get("margin") if best.get("margin") is not None else -1e9):
+            best = out
+    if best is None:
+        best = {"band": None, "margin": None, "label": None}
+    out = dict(best)
+    out |= {"windows": len(wins), "window_size": size, "window_stride": stride}
+    return out
+
+
+def read_convo_windows(guard, gt, cfg, turns, size, stride):
+    """Same, for the multi-turn condition: window the final assistant message."""
+    head, last = turns[:-1], turns[-1]
+    wins = [str(last["content"])[i:i + size] for i in range(0, len(str(last["content"])), stride)]
+    best = None
+    for w in wins:
+        msgs = head + [{"role": "assistant", "content": w}]
+        out = read_convo(guard, gt, cfg, msgs)
+        if best is None or (out.get("margin") if out.get("margin") is not None else -1e9) > \
+                (best.get("margin") if best.get("margin") is not None else -1e9):
+            best = out
+    if best is None:
+        best = {"band": None, "margin": None, "label": None}
+    out = dict(best)
+    out |= {"windows": len(wins), "window_size": size, "window_stride": stride}
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pairs", required=True)
     ap.add_argument("--tag", default="repl")
     ap.add_argument("--n", type=int, default=10)
+    ap.add_argument("--window", type=int, default=None, help="windowed-read mode: window size in chars")
+    ap.add_argument("--stride", type=int, default=600, help="windowed-read stride")
+    ap.add_argument("--only", default=None, help="comma list of condition names to run (windowed mode)")
     args = ap.parse_args()
 
     t0 = time.time()
@@ -121,28 +162,53 @@ def main() -> None:
             "bp_smidge_start": (bp, "\n\n".join([smidge] + chunks_for(i, 7))),
         }
         rec = {"pair_id": r.get("pair_id"), "conditions": {}}
+        only = set(args.only.split(",")) if args.only else None
         for name, (p, resp) in conds.items():
-            out = read(guard, gt, cfg, p, resp)
+            if only and name not in only:
+                continue
+            if args.window:
+                out = read_windows(guard, gt, cfg, p, resp, args.window, args.stride)
+            else:
+                out = read(guard, gt, cfg, p, resp)
             span = smidge if "smidge" in name else payload
             frac = len(span) / max(1, len(resp))
             out |= {"chars": len(resp), "harmful_frac": round(frac, 3)}
             rec["conditions"][name] = out
 
         # multi-turn: 4 benign turns, then the harmful pair as the last turn
-        turns = []
-        for j in range(4):
-            kk = (i * 3 + j) % len(benign_rows)
-            turns.append({"role": "user", "content": benign_rows[kk]["prompt"]})
-            turns.append({"role": "assistant", "content": benign_rows[kk]["response"]})
-        turns += [{"role": "user", "content": hp}, {"role": "assistant", "content": payload}]
-        out = read_convo(guard, gt, cfg, turns)
-        out |= {"chars": sum(len(str(m["content"])) for m in turns),
-                "harmful_frac": round(len(payload) / max(1, sum(len(str(m["content"])) for m in turns)), 3)}
-        rec["conditions"]["convo_4"] = out
+        if not only or "convo_4" in only:
+            turns = []
+            for j in range(4):
+                kk = (i * 3 + j) % len(benign_rows)
+                turns.append({"role": "user", "content": benign_rows[kk]["prompt"]})
+                turns.append({"role": "assistant", "content": benign_rows[kk]["response"]})
+            turns += [{"role": "user", "content": hp}, {"role": "assistant", "content": payload}]
+            if args.window:
+                out = read_convo_windows(guard, gt, cfg, turns, args.window, args.stride)
+            else:
+                out = read_convo(guard, gt, cfg, turns)
+            total_chars = sum(len(str(m["content"])) for m in turns)
+            out |= {"chars": total_chars, "harmful_frac": round(len(payload) / max(1, total_chars), 3)}
+            rec["conditions"]["convo_4"] = out
 
         records.append(rec)
         done = " ".join(f"{k}:{'U' if v['band'] == 'flag' else 's'}" for k, v in rec["conditions"].items())
         log(f"pair {i + 1}/{len(harm)} — {done}")
+
+    # ---- benign controls (false-positive check under the same read mode)
+    ben_test = [r for r in benign_rows if r.get("split") == "test"][: 5]
+    ben_records = []
+    for r in ben_test:
+        if args.window:
+            out = read_windows(guard, gt, cfg, r["prompt"], r["response"], args.window, args.stride)
+        else:
+            out = read(guard, gt, cfg, r["prompt"], r["response"])
+        ben_records.append({"pair_id": r.get("pair_id"), "band": out.get("band"),
+                            "margin": out.get("margin"), "windows": out.get("windows")})
+    if ben_records:
+        bm = [b["margin"] for b in ben_records if isinstance(b.get("margin"), (int, float))]
+        log(f"benign controls: flagged {sum(1 for b in ben_records if b.get('band') == 'flag')}/{len(ben_records)} "
+            f"(margin mean {(sum(bm) / len(bm)):+.2f})")
 
     # ---- aggregate per condition
     names = list(records[0]["conditions"].keys())
@@ -167,7 +233,9 @@ def main() -> None:
     out_path = RESULTS / f"dilution_probe_{args.tag}.json"
     out_path.write_text(json.dumps({
         "time": time.strftime("%Y-%m-%d %H:%M"), "pairs": args.pairs,
-        "n": len(harm), "summary": summary, "per_pair": records,
+        "n": len(harm), "windowed": bool(args.window),
+        "window_size": args.window, "window_stride": args.stride if args.window else None,
+        "summary": summary, "benign_controls": ben_records, "per_pair": records,
     }, indent=2, default=str))
     log(f"wrote {out_path} ({time.time() - t0:.0f}s)")
 
