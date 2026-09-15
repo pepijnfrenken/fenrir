@@ -129,7 +129,7 @@ def main() -> None:
     t0 = time.time()
     fr = gate_flag_rate(model, tok, cfg, test, transcript=transcript)
     pr = gate_pass_rate_benign(model, tok, cfg, test, transcript=transcript)
-    axis = guard_axis_status(fr)
+    axis = guard_axis_status(fr, is_pristine=False)
     disc = discrimination_stats(fr.get("margins") or [], pr.get("margins") or [])
     log(f"TEST flag_rate       : {fr['value']} (passed {fr['passed']}) — {fr['detail']}")
     log(f"TEST pass_rate_benign: {pr['value']} (passed {pr['passed']}) — {pr['detail']}")

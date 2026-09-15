@@ -719,7 +719,7 @@ def gate_pass_rate_benign(model, tok, cfg, pairs, flavor: str | None = None,
     }
 
 
-def guard_axis_status(flag_gate: dict) -> dict:
+def guard_axis_status(flag_gate: dict, *, is_pristine: bool = True) -> dict:
     """Is the guard axis measurable on this pair set? (mirror of
     :func:`refusal_axis_status` for the flagging behavior.)
 
@@ -730,6 +730,10 @@ def guard_axis_status(flag_gate: dict) -> dict:
     when the parse fails on a large share of pairs — the label readout is
     blind there, and a label-derived flag rate of 0 is a lie, not a
     measurement.
+
+    Pass ``is_pristine=False`` when reading an ABLATED guard: 0 flags is then
+    the expected success state rather than a dead instrument, and axis
+    certification belongs to the pristine run.
     """
     n = int(flag_gate.get("n") or 0)
     if not n:
@@ -751,15 +755,18 @@ def guard_axis_status(flag_gate: dict) -> dict:
     measurable = flags > 0 and (rate is None or rate >= min_rate)
     blind_label = flags == 0 and margin_pos > 0
     suspect = blind_label or (unparsed / n) > 0.2 or divergent > n * 0.1
+    subject = "pristine guard" if is_pristine else "current (ablated) guard"
     if blind_label:
         detail = (f"label path found 0/{n} flags while the margin path went "
                   f"positive on {margin_pos}/{n} pairs — the label readout is "
                   f"blind here (instrument suspect)")
     elif flags == 0:
-        detail = (f"pristine guard flagged 0/{n} harmful pairs — no flagging "
-                  f"signal to measure against")
+        tail = ("no flagging signal to measure against" if is_pristine else
+                "expected success state for an ablated guard — axis "
+                "certification belongs to the pristine run")
+        detail = f"{subject} flagged 0/{n} harmful pairs — {tail}"
     else:
-        detail = (f"pristine guard flags {flags}/{n} harmful pairs "
+        detail = (f"{subject} flags {flags}/{n} harmful pairs "
                   f"(margin mean {flag_gate.get('margin_mean')})")
     return {
         "n": n, "flags": flags, "margin_pos": margin_pos, "unparsed": unparsed,

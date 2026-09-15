@@ -84,7 +84,7 @@ def main() -> None:
     t0 = time.time()
     fr = gate_flag_rate(model, tok, cfg, pairs, transcript=transcript)
     pr = gate_pass_rate_benign(model, tok, cfg, pairs, transcript=transcript)
-    sanity = guard_axis_status(fr)
+    sanity = guard_axis_status(fr, is_pristine=is_pristine)
     disc = discrimination_stats(fr.get("margins") or [], pr.get("margins") or [])
     print(f"flag_rate:        value={fr['value']} passed={fr['passed']} — {fr['detail']}")
     print(f"pass_rate_benign: value={pr['value']} passed={pr['passed']} — {pr['detail']}")
