@@ -253,6 +253,11 @@ def write_outputs(items: list, agg: dict, tag: str, meta: dict) -> None:
     RESULTS.mkdir(exist_ok=True)
     out = {"meta": meta, "aggregates": agg}
     (RESULTS / f"visibility_price_{tag}.json").write_text(json.dumps(out, indent=2, default=str))
+    # per-item records (prompt, response, guard label/margin/raw) — evidence, never aggregated away
+    with open(RESULTS / f"items_{tag}.jsonl", "w") as f:
+        for it in items:
+            f.write(json.dumps(it) + "\n")
+    log(f"wrote results/items_{tag}.jsonl ({len(items)} items)")
 
     lines = [f"# Visibility price — {tag}", "",
              f"Subjects: {json.dumps(meta['subjects'])}", f"Guard: {meta['guard']}",
