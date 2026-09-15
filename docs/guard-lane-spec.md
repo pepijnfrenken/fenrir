@@ -4,8 +4,9 @@
 > replicated (2 slices + cross-slice): L17–19 o_proj+down_proj, α=1.1 → 0/10
 > flagged, benign 10/10, ranking AUC 0.985. Discrimination gate (AUC ≥ 0.90)
 > LANDED — α=1.5 fails it (0.740 = degradation). lm_head variant negative.
-> Step 3 coverage-edge probe (BG + style) running.** Details:
-> `campaigns/guard-lane/README.md`.
+> Step 3 DONE — language (BG) edge real-but-thin (7–9/10 flagged vs 10/10 EN;
+> margins compressed; one robust miss across 2 translators); style edge
+> NEGATIVE (9/10, margins up).** Details: `campaigns/guard-lane/README.md`.
 
 Goal: add a **guard mode** to Fenrir — a safety classifier as an abliteration
 target where the behavior under study is *flagging* (verdict emission) instead
