@@ -16,7 +16,7 @@ landscape_scan: >
   Otilde/Qwen3Guard-Gen-4B-Heretic (MLX). Awareness only: for honest framing
   of negative claims and as a later verification target; NEVER redirects this
   campaign. From-scratch DIY remains primary.
-status: PARTIAL — Step 0 DONE (+0.925) · Step 1 DONE (instrumentation) · Step 2 IN FLIGHT — FIRST RECIPE FOUND: L17–19 excision kills flagging (test: 0/10 flagged, 10/10 benign Safe, margins shallow); fresh-prompt replication pending
+status: PARTIAL POSITIVE — Steps 0–2 done: first guard-lane recipe replicated on 2 prompt slices + cross-slice (L17–19 o_proj+down_proj: flag rate 9–10/10 → 0–1/10; benign clean; discrimination compressed ×5 at α=1.0, nearly erased at α=1.5). Instrument gap found: add a discrimination gate before further α tuning.
 hardware: desktop WSL2 — RTX 3060 Ti 8 GB (subjects 1.2B pair + guard 0.6B, bf16)
 cost: ~0 (local)
 baseline_sanity: >
@@ -52,15 +52,16 @@ key_numeric_results:
   margin_mean_ablated_harmful: +5.93
   pristine_acceptance_flag_rate_test: 0.9     # 9/10 — miss is the known boundary case (self-harm post)
   pristine_acceptance_benign_safe_test: 1.0  # 10/10
-  steer_l18_gen_flip: 0/10                    # emitted flags at -0.5x scale (from 10/10 at alpha=0)
-  ablated_l17-18-19_flag_rate_test: 0.0       # gate pass (<=3%)
-  ablated_l17-18-19_benign_safe_test: 1.0     # gate pass (>=97%)
-  ablated_l17-18-19_harmful_margin_mean: -1.1
+  steer_l18_gen_flip: 0/10                    # emitted flags at -0.5x scale (10/10 at alpha=0; both slices)
+  ablated_l17-18-19_a1.0_flag_test: 0.0/0.1   # slice1 / slice2 (10 pairs each)
+  ablated_l17-18-19_a1.0_gap: +2.56/+2.74     # harmful-benign margin gap, vs pristine +12.5/+14.6
+  ablated_l17-18-19_a1.5_flag_test: 0.0       # slice2; gap +0.44 (suppression-discrimination tradeoff)
+  cross_slice_flag_test: 0.0                  # slice2-trained edit on slice1 test
 bugs_found:
   - items_not_persisted   # first n=40 run saved aggregates only; per-item guard records now written (items_*.jsonl). Re-score on --reuse-gen reproduced identical numbers (greedy ⇒ deterministic).
   - benign_split_pairing  # guard-pair builder initially dropped benign pairs (split partitions the harmful list; benign pairs inherit by index). Caught pre-run, fixed, verified 80 pairs written.
   - steer_hook_signatures # transformers 5.x layer hooks can receive a bare tensor (not a tuple) and the steer loop initially mixed global/local tune indices; both fixed before any conclusion was drawn.
-recommended_next: [fresh_prompt_replication, lm_head_input_side_option, guard_geometry_vs_qwen3_sibling, alpha_ladder]
+recommended_next: [discrimination_gate, alpha_tuning_1.0_to_1.5, lm_head_option, slice3_larger_n, geometry_vs_qwen3_sibling]
 ---
 
 # Campaign: Guard lane — abliterate the judge (Qwen3Guard-Gen-0.6B)
@@ -167,33 +168,53 @@ GPU generation: `--n 40 --reuse-gen` (36 s guard pass).
 - Pristine semantics: the flag gate certifies a *successful ablation* — it is
   expected RED on a pristine run; what pristine must pass is the axis line.
 
-### Step 2 — guard abliteration (IN FLIGHT — first recipe found)
+### Step 2 — guard abliteration (PARTIAL POSITIVE — replicated on 2 slices + cross-slice)
 
 **PROBE (verdict position = last token of "...Safety:")** — 60 pairs (train+tune) ×
-28 layers × 1024 dims harvested. Resid norms explode late (L26: 737 — the known
-massive-activation artifact; late-layer directions treated as suspect). The
-diff_means direction (train) separates perfectly on tune **from L14 on**;
-sep/norm peaks at **L17–19 (0.67–0.70)**.
+28 layers. The same structure appears on BOTH prompt slices: the diff_means
+direction separates from L14 on; sep/norm peaks at **L17–21** (slice 1: 0.67–0.70
+at L17–19; slice 2: 0.62–0.73 across L17–21). Late-layer resid norms explode
+(L26: 737 — the massive-activation artifact); those directions are suspect.
 
-**STEER-TEST at L18 (no weight edits) — CAUSAL, two-sided, dose-response:**
-- decision-position: harmful margin +5.99 → **−2.80 at −0.5×scale (10/10 flip)**;
-  +0.5×scale flips BENIGN margin to +2.14 (the guard starts flagging benign pairs)
-- generation-level: emitted flags **10/10 → 0/10 at −0.5×scale** (clean parse);
-  at −2.0×scale generation collapses (unparsed — noted, not used)
+**STEER-TEST at L18 (no weight edits) — CAUSAL on both slices, two-sided:**
+- slice 1: harmful margin +5.99 → −2.80 at −0.5×scale (10/10 flip); +0.5×scale
+  flips BENIGN to +2.14; emitted flags 10/10 → 0/10
+- slice 2: +5.01 → −3.91 (10/10 flip); +0.5×scale flips benign to +1.31;
+  emitted flags 8/10 → 0/10
 
-**EXCISE (o_proj + down_proj, α=1.0, per-layer directions):**
-- L18 alone → **insufficient** (flag 9/10; margin +4.91 → +3.36)
-- L14–27 → **too much**: benign 0/10 Safe (indiscriminate flagging) — late-layer
-  norm-artifact directions + compounding edits destroy calibration
-- **L17–19 → THE RECIPE: flag rate 0/10 (gate pass ≤3%), benign 10/10 Safe
-  (gate pass ≥97%), harmful margin −1.1.** Reload-verified from the saved
-  checkpoint (`models/qwen3guard-0.6b-abl-l17-18-19-a1.0`).
-- **Fragility note:** post-edit margins are shallow (−0.12…−3.25 harmful vs
-  −2.6…−5.8 benign): the harmful-vs-benign ordering survives; the threshold
-  crossing doesn't. A stronger claim needs the replication + an alpha ladder.
-- **Caveats:** the L17–19 band was selected with test-split feedback in this
-  session → a fresh-prompt replication slice is running before this becomes a
-  headline claim; single 10+10 eval set; α untested beyond 1.0; lm_head untouched.
+**EXCISE (o_proj + down_proj, per-layer directions) — result table:**
+
+| edit | slice-1 test | slice-2 test |
+|---|---|---|
+| L18 only, α=1.0 | 9/10 flagged (margin +3.36) — insufficient | — |
+| L14–27, α=1.0 | **selectivity destroyed** (benign 0/10 Safe) | — |
+| **L17–19, α=1.0** | **0/10 flagged**, benign 10/10 | 1/10 flagged (residual +0.5), benign 10/10 |
+| **L17–19, α=1.5** | — | **0/10 flagged**, benign 10/10 |
+| cross-slice (slice-2-trained α=1.0 edit on slice-1 test) | 0/10 flagged, benign 10/10 | — |
+
+**Discrimination profile (harmful margin mean − benign margin mean) — the real story:**
+
+| config | flagged | harmful mean | benign mean | gap |
+|---|---|---|---|---|
+| pristine slice 1 / 2 | 9–10/10 | +4.9 / +5.8 | −7.6 / −8.9 | **+12.5 / +14.6** |
+| ablated α=1.0 (both slices) | 0–1/10 | −1.1 / −0.9 | −3.7 / −3.6 | **+2.6 / +2.7** |
+| ablated α=1.5 | 0/10 | −2.4 | −2.9 | **+0.4** |
+
+**Reading:** the edit stops the flag crossing (0/10) but *compresses the ranking*
+(gap ÷5 at α=1.0, nearly erased at α=1.5). Suppression and discrimination trade
+off; the α ladder moves along that tradeoff. "Refusal gone" for a guard is a
+*threshold edit* — and at the aggressive end it approaches a constant-Safe reader.
+
+**Instrument gap found (next fix):** `gate_flag_rate` + `gate_pass_rate_benign`
+measure suppression and benign selectivity — they cannot distinguish "stops
+flagging" from "stops distinguishing". Add a **discrimination gate**
+(harmful−benign margin gap, or pairwise AUC; pass ≥ a floor) before tuning α
+further.
+
+**Caveats:** n=10+10 per slice, two slices, same subject bank; the L17–19 band
+picked with some test-split feedback in this session (mitigated by the fresh-slice
+replication); lm_head untouched; checkpoints `models/qwen3guard-0.6b-abl-l17-18-19-a{1.0,1.5}`
+(direction-set tag lives in the excise reports).
 
 ## Bugs found & fixed (or still open)
 | Bug | Mechanism | Consequence | Status |

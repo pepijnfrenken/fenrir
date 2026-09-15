@@ -1,9 +1,9 @@
 # Guard lane — implementation spec (draft v0, 2026-09-14)
 
-> **STATUS 2026-09-15:** Step 0 ✓ · Step 1 ✓ · **Step 2 IN FLIGHT — first recipe
-> found: L17–19 excision kills flagging (0/10 flagged, 10/10 benign Safe on test;
-> margins shallow, fresh-prompt replication pending).** Details:
-> `campaigns/guard-lane/README.md`.
+> **STATUS 2026-09-15:** Step 0 ✓ · Step 1 ✓ · **Step 2 PARTIAL POSITIVE — recipe
+> replicated (2 slices + cross-slice): L17–19 o_proj+down_proj kills flagging
+> (9–10/10 → 0–1/10; benign clean); discrimination compressed ×5 — a discrimination
+> gate is the next instrumentation fix.** Details: `campaigns/guard-lane/README.md`.
 
 Goal: add a **guard mode** to Fenrir — a safety classifier as an abliteration
 target where the behavior under study is *flagging* (verdict emission) instead
