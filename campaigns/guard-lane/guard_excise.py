@@ -81,17 +81,29 @@ def main() -> None:
     log(f"editing layers {layers} · weights {args.weights} · alpha {args.alpha}")
 
     targets = [w.strip() for w in args.weights.split(",") if w.strip()]
+
+    def _find_module(layer, name):
+        """Resolve a weight name on a decoder layer across common nestings
+        (layer.o_proj, layer.self_attn.o_proj, layer.mlp.down_proj, ...)."""
+        for path in (name, f"self_attn.{name}", f"mlp.{name}"):
+            mod = layer
+            try:
+                for part in path.split("."):
+                    mod = getattr(mod, part)
+                return mod
+            except AttributeError:
+                continue
+        return None
+
     edited = []
     with torch.no_grad():
         for l in layers:
             d = torch.tensor(dirs[f"d{l}"], dtype=torch.float32).to(model.device)
             layer = model.model.layers[l]
             for name in targets:
-                mod = layer
-                try:
-                    for part in name.split("."):
-                        mod = getattr(mod, part)
-                except AttributeError:
+                mod = _find_module(layer, name)
+                if mod is None:
+                    log(f"  WARNING: could not resolve {name!r} on layer {l}")
                     continue
                 W = mod.weight
                 W32 = W.float()
@@ -106,6 +118,8 @@ def main() -> None:
             W32 = W32 - args.alpha * torch.outer(W32 @ d_lm, d_lm)
             W.copy_(W32.to(W.dtype))
             edited.append(f"lm_head(input-side, d{args.lm_head_layer})")
+    if not edited:
+        sys.exit("no tensors edited — weight names could not be resolved on this architecture")
     log(f"edited {len(edited)} tensors: {edited[0]} … {edited[-1]}")
 
     # ---- evaluate on the held-out TEST split (in-memory, gates machinery)
