@@ -123,7 +123,8 @@ def main() -> None:
         rec = {"pair_id": r.get("pair_id"), "conditions": {}}
         for name, (p, resp) in conds.items():
             out = read(guard, gt, cfg, p, resp)
-            frac = len(payload) / max(1, len(resp)) if name != "smidge_k7" else len(smidge) / max(1, len(resp))
+            span = smidge if "smidge" in name else payload
+            frac = len(span) / max(1, len(resp))
             out |= {"chars": len(resp), "harmful_frac": round(frac, 3)}
             rec["conditions"][name] = out
 
