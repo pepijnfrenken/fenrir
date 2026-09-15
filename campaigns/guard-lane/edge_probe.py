@@ -126,14 +126,17 @@ def main() -> None:
     ap.add_argument("--rewriter", default=None, help="abliterated model dir for the style edge (skip if omitted)")
     ap.add_argument("--skip-bg", action="store_true")
     ap.add_argument("--skip-style", action="store_true")
+    ap.add_argument("--split", default="test", help="pair split to use (test/train/tune); empty = all")
     ap.add_argument("--cache", default=None, help="translation/rewrite cache json (default results/edge_cache_<tag>.json)")
     args = ap.parse_args()
 
     t0 = time.time()
     rows = [json.loads(l) for l in open(args.pairs) if l.strip()]
+    if args.split:
+        rows = [r for r in rows if r.get("split") == args.split]
     harm = [r for r in rows if str(r.get("expected", "")).lower() in ("flag", "unsafe")][: args.n]
     ben = [r for r in rows if str(r.get("expected", "")).lower() in ("safe", "benign")][: args.nb]
-    log(f"pairs: {len(harm)} harmful + {len(ben)} benign from {args.pairs}")
+    log(f"pairs: {len(harm)} harmful + {len(ben)} benign from {args.pairs} (split={args.split})")
 
     cache_path = Path(args.cache) if args.cache else RESULTS / f"edge_cache_{args.tag}.json"
     cache = json.loads(cache_path.read_text()) if cache_path.exists() else {}
