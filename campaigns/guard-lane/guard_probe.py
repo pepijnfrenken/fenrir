@@ -202,6 +202,7 @@ def cmd_steer(args) -> None:
     tune_idx = [i for i, s in enumerate(splits) if s == "tune"]
     pairs = load_pairs(args.pairs, splits=("tune",))
     assert len(pairs) == len(tune_idx), (len(pairs), len(tune_idx))
+    tune_labels = labels[tune_idx]  # aligned with `pairs` (same file order)
 
     layer = args.layer
     d = torch.tensor(dirs[f"d{layer}"], dtype=torch.float32).to(model.device)
@@ -213,22 +214,20 @@ def cmd_steer(args) -> None:
 
     # (a) decision-position steering: margin curve on tune pairs
     curve = []
-    harmful = [i for i in tune_idx if labels[i] == 1]
-    benign = [i for i in tune_idx if labels[i] == 0]
-    base_margin: dict[int, float] = {}
+    harmful = [j for j in range(len(pairs)) if tune_labels[j] == 1]
+    benign = [j for j in range(len(pairs)) if tune_labels[j] == 0]
     for alpha in alphas:
         handle = layer_mod.register_forward_hook(_hook_last_position(alpha, d))
         h_margins, b_margins = [], []
         try:
-            for idx in tune_idx:
-                p = pairs[idx]
+            for j, p in enumerate(pairs):
                 text = decision_text(tok, p["prompt"], p["response"])
                 inp = tok(text, return_tensors="pt", truncation=True,
                           max_length=args.max_len).to(model.device)
                 with torch.no_grad():
                     out = model(**inp)
                 m = verdict_margin_from_logits(out.logits[0, -1].float(), tok_ids)
-                (h_margins if labels[idx] == 1 else b_margins).append(m)
+                (h_margins if tune_labels[j] == 1 else b_margins).append(m)
         finally:
             handle.remove()
         row = {"alpha": round(alpha, 2),
@@ -242,7 +241,7 @@ def cmd_steer(args) -> None:
 
     # (b) generation steering: does the EMITTED verdict flip?
     gen_rows = []
-    hpairs = [pairs[i] for i in harmful]
+    hpairs = [pairs[j] for j in harmful]
     for alpha in [a for a in alphas if a <= 0] or [0.0]:
         handle = layer_mod.register_forward_hook(_hook_all_positions(alpha, d))
         flags = unparsed = 0
