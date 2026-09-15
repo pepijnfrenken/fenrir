@@ -78,13 +78,13 @@ def load_model(model_id: str):
     return tok, model
 
 
-def load_banks(n: int):
+def load_banks(n: int, offset: int = 0):
     rows = [json.loads(line) for line in open(DATA_FILE)]
     def opt(r):
         return r.get("option") or ("harmful" if r.get("label") == 1 else "harmless")
     harmful = sorted(r["prompt"] for r in rows if opt(r) == "harmful")
     benign = sorted(r["prompt"] for r in rows if opt(r) == "benign" or opt(r) == "harmless")
-    return harmful[:n], benign[:n]
+    return harmful[offset:offset + n], benign[offset:offset + n]
 
 
 def guard_eval(tok, model, prompt: str, response: str, max_new_tokens: int = 24) -> dict:
@@ -127,15 +127,17 @@ def smoke(guard: str, max_new_tokens: int) -> None:
     log("smoke done")
 
 
-def generate_subjects(n: int, max_new_tokens: int, tag: str, reuse: bool) -> list:
+def generate_subjects(n: int, max_new_tokens: int, tag: str, reuse: bool,
+                      offset: int = 0, subjects: list | None = None) -> list:
     gen_file = RESULTS / f"generations_{tag}.jsonl"
     if reuse and gen_file.exists():
         items = [json.loads(line) for line in open(gen_file)]
         log(f"reused {len(items)} generations from {gen_file}")
         return items
-    harmful, benign = load_banks(n)
+    harmful, benign = load_banks(n, offset)
+    subs = {k: v for k, v in SUBJECTS.items() if not subjects or k in subjects}
     items: list = []
-    for subj, mid in SUBJECTS.items():
+    for subj, mid in subs.items():
         t0 = time.time()
         tok, model = load_model(mid)
         for bank, prompts in (("harmful", harmful), ("benign", benign)):
@@ -246,6 +248,10 @@ def main() -> None:
     ap.add_argument("--guard", default=GUARD_DEFAULT)
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--reuse-gen", action="store_true", help="reuse generations file if present")
+    ap.add_argument("--offset", type=int, default=0,
+                    help="skip the first N sorted bank prompts (fresh-slice replication)")
+    ap.add_argument("--subjects", default=None,
+                    help="comma list of subjects to generate (default: pristine,ablated)")
     args = ap.parse_args()
 
     if not torch.cuda.is_available():
@@ -255,8 +261,10 @@ def main() -> None:
         smoke(args.guard, 24)
         return
 
-    tag = f"lfm_pair_n{args.n}x2"
-    items = generate_subjects(args.n, args.max_new_tokens, tag, args.reuse_gen)
+    tag = f"lfm_pair_n{args.n}x2" + (f"_off{args.offset}" if args.offset else "")
+    subj_list = [s.strip() for s in args.subjects.split(",")] if args.subjects else None
+    items = generate_subjects(args.n, args.max_new_tokens, tag, args.reuse_gen,
+                              offset=args.offset, subjects=subj_list)
     items = guard_pass(items, args.guard, 24)
     agg = aggregate(items)
     meta = {"subjects": SUBJECTS, "guard": args.guard, "n": args.n,
