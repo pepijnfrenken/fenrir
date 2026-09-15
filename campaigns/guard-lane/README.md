@@ -84,7 +84,7 @@ bugs_found:
   - items_not_persisted   # first n=40 run saved aggregates only; per-item guard records now written (items_*.jsonl). Re-score on --reuse-gen reproduced identical numbers (greedy ⇒ deterministic).
   - benign_split_pairing  # guard-pair builder initially dropped benign pairs (split partitions the harmful list; benign pairs inherit by index). Caught pre-run, fixed, verified 80 pairs written.
   - steer_hook_signatures # transformers 5.x layer hooks can receive a bare tensor (not a tuple) and the steer loop initially mixed global/local tune indices; both fixed before any conclusion was drawn.
-recommended_next: [prompt_side_hardening, sentence_level_reads, bg_gold_translations, guard_scale_4b_8b, geometry_vs_base_sibling]
+recommended_next: [elicitation_retest, prompt_side_hardening, sentence_level_reads, bg_gold_translations, guard_scale_4b_8b]
 ---
 
 # Campaign: Guard lane — abliterate the judge (Qwen3Guard-Gen-0.6B)
@@ -237,6 +237,12 @@ Reading: the edit *shifts the threshold* — harmful margins move below the flag
 line while keeping their rank order (α=1.0: AUC essentially intact; the raw gap
 compression alone was misleading). At α=1.5 the ranking itself erodes (AUC 0.74)
 — suppression-by-degradation, on the way to a constant-Safe reader.
+
+**Caveat on the word "judgment":** AUC certifies the ranking on THIS readout
+only — the template verdict and its margin scalar. Whether the ablated guard
+still flags under *other* elicitations (free generation, a direct "is this
+unsafe?" question, a different template) is untested; if nothing elicits a flag,
+more than a threshold moved. `elicitation_retest` is queued.
 
 **Instrument fix — LANDED (`00c48fb`):** `gate_discrimination` (AUC of harmful-vs-
 benign margins, floor **0.90**) wired into guard-mode `run_gates` plus the driver
