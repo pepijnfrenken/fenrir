@@ -213,8 +213,8 @@ def test_discrimination_stats():
     assert st["auc"] == 0.5  # all ties
     st = discrimination_stats([], [1])
     assert st["value"] is None
-    # partial: one inversion out of 4 pairings
-    st = discrimination_stats([2, 1], [0, 3])
+    # partial: one inversion out of 4 pairings -> 0.75
+    st = discrimination_stats([2, 1], [0, 1.5])
     assert st["auc"] == pytest.approx(0.75)
 
 
