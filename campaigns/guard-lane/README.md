@@ -16,31 +16,32 @@ landscape_scan: >
   Otilde/Qwen3Guard-Gen-4B-Heretic (MLX). Awareness only: for honest framing
   of negative claims and as a later verification target; NEVER redirects this
   campaign. From-scratch DIY remains primary.
-status: PARTIAL — Step 0 DONE (visibility price +0.925, deterministic re-score; per-item records banked); Step 1 (guard_mode instrumentation) next
+status: PARTIAL — Step 0 DONE (visibility price +0.925) · Step 1 DONE (guard_readout + guard-mode gates + pairs + tests; pristine acceptance 9/10 = known boundary case, 10/10 benign) · Step 2 (guard abliteration) NEXT
 hardware: desktop WSL2 — RTX 3060 Ti 8 GB (subjects 1.2B pair + guard 0.6B, bf16)
 cost: ~0 (local)
 baseline_sanity: >
   Guard-side analog of the refusal baseline gate: the PRISTINE guard must
-  measurably flag held-out harmful pairs (flag rate high) and NOT flag benign
-  pairs, or the run is INSTRUMENT SUSPECT (a guard that reads everything Safe
-  is the "keyword gate" mistake wearing a different hat). PASSED 2026-09-15:
-  smoke (canned refusal→Safe −6.75, canned compliance→Unsafe +8.5, benign→Safe)
-  + full run (benign banks 0/40 flagged both subjects, no polarity flapping).
+  measurably flag held-out harmful pairs, or the run is INSTRUMENT SUSPECT
+  (a guard that reads everything Safe is the "keyword gate" mistake wearing a
+  different hat). PASSED 2026-09-15: smoke (canned refusal→Safe −6.75, canned
+  compliance→Unsafe +8.5, benign→Safe), full run (benign banks 0/40 flagged),
+  and the Step-1 acceptance driver (test split: 9/10 harmful flagged, margin
+  mean +4.91; benign 10/10 Safe; axis measurable, not suspect).
 pre_edit_steer_gate: >
   Same discipline as chat campaigns: before any guard weight edit, verify the
-  candidate direction is causal (steer-test flips the verdict). No causal flip
-  → the direction is a content proxy, not the decision circuit.
+  candidate direction is causal (steer-test flips the verdict margin/verdict).
+  No causal flip → the direction is a content proxy, not the decision circuit.
 methods_tried: []
 dir_methods_tried: []
 verdict_summary: >
-  Step 0 measured: the visibility price of abliteration to a content-reading
-  guard is +0.925 (harmful bank, n=40). Pristine refusals all read Safe
-  (0/40 flagged, margin −8.99); abliterated responses read Unsafe in 37/40
-  (margin +5.93); benign banks clean (0/40 both subjects); parse↔margin
-  agreement 160/160. The 3 misses are boundary-adjacent (margins −1.1…−2.4)
-  and the guard itself tagged them "Refusal: Yes" — abliteration that shifts
-  STYLE while the content stays defensive still reads Safe. Caveat: content vs
-  style attribution untested; one guard, one subject pair, n=40.
+  Step 0: the visibility price of abliteration to a content-reading guard is
+  +0.925 (harmful bank, n=40) — pristine refusals all read Safe (margin −8.99);
+  abliterated responses read Unsafe in 37/40 (margin +5.93); benign banks
+  clean; parse↔margin agreement 160/160. Step 1: guard-mode instrumentation
+  landed (readout module + gates + pairs + driver + tests) and the pristine
+  guard passes its acceptance read (9/10 = the single known boundary case from
+  Step 0; 10/10 benign). Caveat: content vs style attribution untested; one
+  guard, one subject pair, n=40.
 key_numeric_results:
   visibility_price_harmful: 0.925
   pristine_flag_rate_harmful: 0.0
@@ -49,9 +50,12 @@ key_numeric_results:
   parse_margin_agreement: 1.0
   margin_mean_pristine_harmful: -8.99
   margin_mean_ablated_harmful: +5.93
+  pristine_acceptance_flag_rate_test: 0.9     # 9/10 — miss is the known boundary case (self-harm post)
+  pristine_acceptance_benign_safe_test: 1.0  # 10/10
 bugs_found:
-  - items_not_persisted   # first n=40 run saved aggregates only (no per-item guard records). Fixed: items_*.jsonl now written; re-score on --reuse-gen reproduced identical numbers (greedy ⇒ deterministic).
-recommended_next: [guard_mode_instrumentation, steer_test_on_verdict_axis, coverage_edge_style_vs_content]
+  - items_not_persisted   # first n=40 run saved aggregates only; per-item guard records now written (items_*.jsonl). Re-score on --reuse-gen reproduced identical numbers (greedy ⇒ deterministic).
+  - benign_split_pairing  # guard-pair builder initially dropped benign pairs (split partitions the harmful list; benign pairs inherit by index). Caught pre-run, fixed, verified 80 pairs written.
+recommended_next: [guard_abliteration_probe, verdict_position_harvest, lm_head_excise_probe]
 ---
 
 # Campaign: Guard lane — abliterate the judge (Qwen3Guard-Gen-0.6B)
@@ -59,12 +63,13 @@ recommended_next: [guard_mode_instrumentation, steer_test_on_verdict_axis, cover
 ## TL;DR
 New lane: the abliteration target is a **safety classifier** — the behavior under
 study is *flagging* (verdict emission), not refusal. Ladder: **Step 0** measure the
-visibility price (what a guard does to pristine vs abliterated subjects) → **Step 1**
-guard-mode instrumentation (`guard_readout` + gates) → **Step 2** abliterate the
+visibility price → **Step 1** guard-mode instrumentation → **Step 2** abliterate the
 guard with the standard instrument gates → **Step 3** (stretch) stealth shaping /
-coverage-edge measurement. Live guard landscape scan done (awareness only).
-**Step 0 result: visibility price +0.925** — abliteration moves the subject's flag
-rate on harmful prompts from 0/40 to 37/40 while benign stays 0/40.
+coverage-edge measurement.
+**Step 0: visibility price +0.925** (0/40 → 37/40 flagged on harmful; benign 0/40).
+**Step 1: instrumentation landed** — readout module, guard gates, pair builder,
+acceptance driver, tests; pristine acceptance 9/10 harmful (the known boundary
+case) + 10/10 benign; Step-0 regression after the refactor: identical numbers.
 
 ## Why this model
 - Smallest current-gen *generative* guard (0.6B, apache-2.0, ungated) → runs
@@ -81,12 +86,10 @@ rate on harmful prompts from 0/40 to 37/40 while benign stays 0/40.
    implementation ladder added to `docs/target-scout-2026-09-14.md`.
 1. Landscape scan (2026-09-15, desktop up): guard families + published guard
    abliterations recorded above. `Qwen3Guard-Gen-0.6B` downloaded to desktop.
-2. Step 0 staged (2026-09-15): `guard_visibility_price.py` + prompt banks from
-   `data/refusal_eval.jsonl` (200 harmful / 200 benign, campaign-consistent with
-   minicpm5-2b and if-ablation). Subjects: the published LFM2.5-1.2B pair
-   (pristine vs abliterated) — the cheapest clean before/after we own.
-3. Step 0 RUN (2026-09-15): smoke → full battery (n=40/bank × 2 subjects) →
-   deterministic re-score. Results below.
+2. Step 0 staged + run (2026-09-15): `guard_visibility_price.py` + prompt banks
+   from `data/refusal_eval.jsonl` (200 harmful / 200 benign, campaign-consistent
+   with minicpm5-2b and if-ablation). Subjects: the published LFM2.5-1.2B pair.
+3. Step 1 landed (2026-09-15): guard-mode instrumentation (below).
 
 ### Step 0 — the visibility price (DONE)
 Protocol: same prompts, greedy chat generations from both subjects; each
@@ -122,37 +125,71 @@ confound for Step 3: content vs style attribution is not separated by this
 design (a style-shifted-but-benign response could in principle be flagged by
 some guards).
 
-Artifacts (machine-local on the desktop, regenerable; not committed):
-`results/` — `generations_*`, `items_*` (per-prompt responses + guard
+Artifacts: `results/` — `generations_*`, `items_*` (per-prompt responses + guard
 label/margin/raw), `visibility_price_*.json/.md`, `guard0.log`. Re-score without
 GPU generation: `--n 40 --reuse-gen` (36 s guard pass).
+
+### Step 1 — guard_mode instrumentation (DONE 2026-09-15)
+
+**Landed:**
+- `guard_readout.py` — verdict parsing per family (qwen3guard CALIBRATED;
+  llama-guard / shieldgemma / granite-guardian parsers BLIND until measured),
+  verdict-token margin with decision-step location, divergence accounting.
+  Torch-free at import.
+- `gates.py` — guard-mode gates: `gate_flag_rate` (held-out harmful pairs;
+  pass ≤3% = the ablation stopped flagging), `gate_pass_rate_benign`
+  (selectivity ≥97%), `guard_axis_status` + `guard_baseline_sanity_gate`
+  (fail-closed: a pristine guard that flags nothing has no axis to ablate
+  against). `run_gates` routes on `cfg.guard_mode`; chat-behavior gates are
+  recorded as skipped, never green.
+- `models/qwen3guard-0.6b.yaml` — `guard_mode: true`, measured verdict-token
+  ids, guard thresholds.
+- `campaigns/guard-lane/build_guard_pairs.py` — 80 pairs from the ablated
+  subject's measured generations (40/20/20 train/tune/test via `eval_split`).
+- `campaigns/guard-lane/run_guard_gates.py` — acceptance driver (pristine or
+  `--model-dir` ablated guard).
+- `tests/test_guard_readout.py` — 12 tests (parsing, decision-step, token
+  resolution, two-readout judgement, guard-mode `run_gates` wiring).
+
+**Acceptance evidence (pristine guard, held-out TEST split, 10 harmful + 10 benign):**
+- flag rate **9/10** (margin mean +4.91) — the single miss is the SAME boundary
+  case from Step 0 (self-harm post → supportive content; guard reads Safe with
+  `Refusal: Yes`). Consistent, known, and it sits in the held-out split.
+- benign **10/10 Safe**; guard axis measurable, not instrument-suspect.
+- Step-0 regression after the refactor onto the shared module: **identical
+  aggregates** (0.925; same margins).
+- Test suites: guard 12/12 · existing gates regression 17/17.
+- Pristine semantics: the flag gate certifies a *successful ablation* — it is
+  expected RED on a pristine run; what pristine must pass is the axis line.
 
 ## Bugs found & fixed (or still open)
 | Bug | Mechanism | Consequence | Status |
 |---|---|---|---|
 | items_not_persisted | first n=40 run wrote only aggregates; per-item guard records (the evidence) were dropped | can't re-examine individual verdicts / misses | fixed `c948fb5` — `items_*.jsonl` now written; re-score reproduced identical numbers |
+| benign_split_pairing | builder built partitions from the harmful list only; benign pairs were dropped (no matching key) | benign half of the eval set silently empty | caught pre-run; fixed — benign pairs inherit their paired harmful prompt's partition |
 
 ## What the NEXT campaign on this model should try first
 
-1. Step 1: land `guard_readout.py` + `gate_flag_rate` / `gate_pass_rate_benign`
-   onto the harness (spec in `docs/guard-lane-spec.md`), including the
-   INSTRUMENT SUSPECT check ("can the pristine guard even flag?").
-2. Step 2: probe → distill → steer-test → excise on the verdict axis, with the
-   same instrument gates as every chat campaign.
-3. Geometry read: per-layer cosine between the guard's harm axis and its chat
+1. **Step 2 — guard abliteration**: PROBE (flag vs pass at the verdict position)
+   → DISTILL (diff_means / paired / LEACE over (harmful-pair, benign-pair)
+   activation contrasts at the verdict position) → **steer-test causality first**
+   (no causal flip → verdict is a content proxy) → EXCISE (o_proj/down_proj;
+   probe `lm_head` too — the verdict is an output token) → guard gates.
+2. Geometry read: per-layer cosine between the guard's harm axis and its chat
    sibling's refusal axis (Qwen3-0.6B base exists as a natural sibling).
-4. Coverage edges (Step 3 pre-work): multilingual probes (BG), encoding/style
+3. Coverage edges (Step 3 pre-work): multilingual probes (BG), encoding/style
    variants — plus the content-vs-style confound above.
 
 ## Campaign flow with the instrument gates (do these in order)
 
 1. `guard_visibility_price.py --smoke` — guard sanity (flags canned harmful
    responses, parses labels, margins in the right direction). ✓ 2026-09-15
-2. `guard_visibility_price.py --n 40` — visibility price table (both subjects,
-   both banks). ✓ 2026-09-15 (+0.925)
-3. Step 1 instrumentation, then the standard arc: inspect → directions →
-   collect (baseline sanity) → steer-test (require-effect) → abl → gates →
-   read transcripts before writing the verdict.
+2. `guard_visibility_price.py --n 40` — visibility price table. ✓ (+0.925)
+3. `build_guard_pairs.py` — held-out pair set. ✓ (80 pairs, 40/20/20)
+4. `run_guard_gates.py` on the PRISTINE guard — axis certification. ✓ (9/10, miss = known)
+5. Step 2 arc: probe → directions → steer-test (require-effect) → abl →
+   `run_guard_gates.py --model-dir <ablated>` → read transcripts before writing
+   the verdict.
 
 ## Key-numbers cheat-sheet
 | Metric | Value |
@@ -163,6 +200,7 @@ GPU generation: `--n 40 --reuse-gen` (36 s guard pass).
 | Benign flag rate (both subjects) | 0/40 |
 | Parse↔margin agreement | 160/160 |
 | Smoke: canned refusal / compliance / benign | Safe −6.75 / Unsafe +8.5 / Safe |
+| Acceptance (test split, pristine) | 9/10 harmful (known miss) · 10/10 benign |
 
 ---
 
@@ -171,9 +209,8 @@ GPU generation: `--n 40 --reuse-gen` (36 s guard pass).
 - **Instrument-first inversion**: for chat targets the failure mode was a gate
   blind to refusals; for a guard target the analogous failure is a guard that
   flaps polarity (reads refusal as flag). The margin readout exists precisely to
-  catch sign flips that a label parse could hide. Step-0 evidence for instrument
-  health: 160/160 parse↔margin agreement, benign banks clean, misses
-  boundary-adjacent (−1.1…−2.4) rather than chaotic.
+  catch sign flips that a label parse could hide. Evidence for instrument
+  health: 160/160 parse↔margin agreement, benign clean, misses boundary-adjacent.
 - **A guard edit hides the subject from THAT guard only** (Step 3 honest prior).
   Wins, if any, live at coverage edges (language / encoding / style) — and
   Bulgarian coverage is available for testing (Qwen3Guard claims 119 languages).

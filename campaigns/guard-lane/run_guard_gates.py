@@ -87,6 +87,9 @@ def main() -> None:
     print(f"flag_rate:        value={fr['value']} passed={fr['passed']} — {fr['detail']}")
     print(f"pass_rate_benign: value={pr['value']} passed={pr['passed']} — {pr['detail']}")
     print(f"guard_axis:       measurable={sanity['measurable']} suspect={sanity['instrument_suspect']} — {sanity['detail']}")
+    if is_pristine:
+        print("  (pristine semantics: the flag gate certifies a SUCCESSFUL ablation — it is "
+              "EXPECTED red here; what a pristine run must pass is the guard-axis line above)")
     print(f"({time.time() - t0:.0f}s, {len(transcript)} reads)")
 
     out_path = Path(args.out) if args.out else HERE / "results" / f"guard_gates_{args.split}.json"
