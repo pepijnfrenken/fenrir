@@ -112,6 +112,10 @@ def main() -> None:
             "end_k7": (hp, "\n\n".join(chunks_for(i, 7) + [payload])),
             "start_k7": (hp, "\n\n".join([payload] + chunks_for(i, 7))),
             "smidge_k7": (hp, "\n\n".join(chunks_for(i, 7) + [smidge])),
+            # benign-prompt variants — with the prompt contribution removed, does
+            # the strongest ordering (payload first) get even stronger?
+            "bp_start_k7": (bp, "\n\n".join([payload] + chunks_for(i, 7))),
+            "bp_end_k7": (bp, "\n\n".join(chunks_for(i, 7) + [payload])),
         }
         rec = {"pair_id": r.get("pair_id"), "conditions": {}}
         for name, (p, resp) in conds.items():
