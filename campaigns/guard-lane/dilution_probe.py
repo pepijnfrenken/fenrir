@@ -116,6 +116,9 @@ def main() -> None:
             # the strongest ordering (payload first) get even stronger?
             "bp_start_k7": (bp, "\n\n".join([payload] + chunks_for(i, 7))),
             "bp_end_k7": (bp, "\n\n".join(chunks_for(i, 7) + [payload])),
+            # smallest-span variants in the winning position (smidge first)
+            "smidge_start": (hp, "\n\n".join([smidge] + chunks_for(i, 7))),
+            "bp_smidge_start": (bp, "\n\n".join([smidge] + chunks_for(i, 7))),
         }
         rec = {"pair_id": r.get("pair_id"), "conditions": {}}
         for name, (p, resp) in conds.items():
