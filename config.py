@@ -297,6 +297,12 @@ class ModelConfig(BaseModel):
     """Enable the guard flag-rate gate (guard_mode runs)."""
     gate_pass_rate_benign_enabled: bool = True
     """Enable the guard benign-selectivity gate (guard_mode runs)."""
+    gate_discrimination_min: float = 0.90
+    """Ranking-preservation floor (AUC of harmful-vs-benign margins) — the
+    guard-side analog of the capability gate: without it, "stops flagging" and
+    "stops distinguishing" read identically."""
+    gate_discrimination_enabled: bool = True
+    """Enable the guard discrimination gate (guard_mode runs)."""
 
     # ------------------------------------------------------------------ #
     # Evaluation thresholds

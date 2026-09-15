@@ -33,6 +33,7 @@ sys.path.insert(0, str(REPO))
 import torch  # noqa: E402
 from config import load_config  # noqa: E402
 from gates import (  # noqa: E402
+    discrimination_stats,
     gate_flag_rate,
     gate_pass_rate_benign,
     guard_axis_status,
@@ -84,8 +85,10 @@ def main() -> None:
     fr = gate_flag_rate(model, tok, cfg, pairs, transcript=transcript)
     pr = gate_pass_rate_benign(model, tok, cfg, pairs, transcript=transcript)
     sanity = guard_axis_status(fr)
+    disc = discrimination_stats(fr.get("margins") or [], pr.get("margins") or [])
     print(f"flag_rate:        value={fr['value']} passed={fr['passed']} — {fr['detail']}")
     print(f"pass_rate_benign: value={pr['value']} passed={pr['passed']} — {pr['detail']}")
+    print(f"discrimination:   {disc['detail']}")
     print(f"guard_axis:       measurable={sanity['measurable']} suspect={sanity['instrument_suspect']} — {sanity['detail']}")
     if is_pristine:
         print("  (pristine semantics: the flag gate certifies a SUCCESSFUL ablation — it is "
@@ -98,7 +101,7 @@ def main() -> None:
         "time": time.strftime("%Y-%m-%d %H:%M"),
         "model": cfg.model_id, "pristine": is_pristine, "split": args.split,
         "n_pairs": len(pairs), "flag_rate": fr, "pass_rate_benign": pr,
-        "guard_axis": sanity, "per_pair": transcript,
+        "discrimination": disc, "guard_axis": sanity, "per_pair": transcript,
     }, indent=2, default=str))
     print(f"wrote {out_path}")
 

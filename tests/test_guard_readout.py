@@ -19,7 +19,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from config import ModelConfig  # noqa: E402
-from gates import run_gates  # noqa: E402
+from gates import discrimination_stats, run_gates  # noqa: E402
 from guard_readout import (  # noqa: E402
     decision_step_index,
     parse_verdict,
@@ -204,6 +204,20 @@ def _guard_pairs():
     ]
 
 
+def test_discrimination_stats():
+    st = discrimination_stats([5, 4, 3], [-1, -2, -3])
+    assert st["auc"] == 1.0 and st["gap"] == pytest.approx(6.0)
+    st = discrimination_stats([-1, -2], [1, 2])
+    assert st["auc"] == 0.0
+    st = discrimination_stats([1, 1], [1, 1])
+    assert st["auc"] == 0.5  # all ties
+    st = discrimination_stats([], [1])
+    assert st["value"] is None
+    # partial: one inversion out of 4 pairings
+    st = discrimination_stats([2, 1], [0, 3])
+    assert st["auc"] == pytest.approx(0.75)
+
+
 def test_run_gates_guard_mode_wiring_and_fail_closed():
     cfg = ModelConfig(model_id="stub")
     cfg.guard_mode = True
@@ -220,6 +234,9 @@ def test_run_gates_guard_mode_wiring_and_fail_closed():
     assert report["flag_rate"]["value"] == 0.0
     assert report["flag_rate"]["passed"] is True   # a 0 flag rate is the SUCCESS state for an ablation
     assert report["pass_rate_benign"]["value"] == 1.0
+    # both classes read identically in this stub -> no ranking information -> AUC 0.5
+    assert report["discrimination"]["auc"] == 0.5
+    assert report["discrimination"]["passed"] is False
     assert report["baseline_sanity"]["passed"] is False  # ...but unmeasurable on a pristine run
     assert report["eval_pass"] is False
     assert len(tl) == 4  # two reads per pair group (harmful + benign), 2 pairs each

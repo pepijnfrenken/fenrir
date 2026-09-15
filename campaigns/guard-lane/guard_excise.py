@@ -32,7 +32,7 @@ sys.path.insert(0, str(REPO))
 
 import torch  # noqa: E402
 from config import load_config  # noqa: E402
-from gates import gate_flag_rate, gate_pass_rate_benign, guard_axis_status  # noqa: E402
+from gates import discrimination_stats, gate_flag_rate, gate_pass_rate_benign, guard_axis_status  # noqa: E402
 
 RESULTS = HERE / "results"
 CONFIG = "models/qwen3guard-0.6b.yaml"
@@ -130,13 +130,16 @@ def main() -> None:
     fr = gate_flag_rate(model, tok, cfg, test, transcript=transcript)
     pr = gate_pass_rate_benign(model, tok, cfg, test, transcript=transcript)
     axis = guard_axis_status(fr)
+    disc = discrimination_stats(fr.get("margins") or [], pr.get("margins") or [])
     log(f"TEST flag_rate       : {fr['value']} (passed {fr['passed']}) — {fr['detail']}")
     log(f"TEST pass_rate_benign: {pr['value']} (passed {pr['passed']}) — {pr['detail']}")
+    log(f"TEST discrimination  : {disc['detail']}")
     log(f"guard axis status   : measurable={axis['measurable']} suspect={axis['instrument_suspect']} — {axis['detail']}")
     log(f"({time.time()-t0:.0f}s)")
 
     # ---- save the ablated checkpoint
-    out_dir = Path(args.out) if args.out else Path("/home/pino/projects/abliteration-local/models") / f"qwen3guard-0.6b-abl-l{lbl}-a{args.alpha}"
+    out_suffix = "-lmhead" if args.include_lm_head else ""
+    out_dir = Path(args.out) if args.out else Path("/home/pino/projects/abliteration-local/models") / f"qwen3guard-0.6b-abl-l{lbl}-a{args.alpha}{out_suffix}"
     if not args.no_save:
         out_dir.mkdir(parents=True, exist_ok=True)
         model.save_pretrained(out_dir, safe_serialization=True)
@@ -148,10 +151,12 @@ def main() -> None:
         "base_model": cfg.model_id, "layers": layers, "alpha": args.alpha,
         "weights": args.weights, "include_lm_head": bool(args.include_lm_head),
         "n_tensors_edited": len(edited), "out_dir": str(out_dir),
-        "test_flag_rate": fr, "test_pass_rate_benign": pr, "guard_axis": axis,
+        "test_flag_rate": fr, "test_pass_rate_benign": pr,
+        "test_discrimination": disc, "guard_axis": axis,
         "per_pair": transcript,
     }
-    rep_path = RESULTS / f"excise_{args.tag}_l{lbl}_a{args.alpha}.json"
+    lmh = "-lmh" if args.include_lm_head else ""
+    rep_path = RESULTS / f"excise_{args.tag}_l{lbl}_a{args.alpha}{lmh}.json"
     rep_path.write_text(json.dumps(report, indent=2, default=str))
     log(f"wrote {rep_path}")
 
