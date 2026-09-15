@@ -47,13 +47,22 @@ def main() -> None:
     ap.add_argument("--config", default=CONFIG)
     ap.add_argument("--pairs", default="campaigns/guard-lane/data/guard_pairs_lfm-abl_n40.jsonl")
     ap.add_argument("--tag", default="guard")
-    ap.add_argument("--layer", type=int, required=True)
+    ap.add_argument("--layer", type=int, default=None, help="single layer (convenience)")
+    ap.add_argument("--layers", default=None, help="comma-separated layer list (overrides --layer)")
     ap.add_argument("--alpha", type=float, default=1.0)
     ap.add_argument("--weights", default="o_proj,down_proj")
     ap.add_argument("--include-lm-head", action="store_true")
+    ap.add_argument("--lm-head-layer", type=int, default=27,
+                    help="layer whose direction is used for the lm_head input-side removal")
     ap.add_argument("--out", default=None, help="output model dir (default under abliteration-local/models)")
     ap.add_argument("--no-save", action="store_true", help="evaluate only, do not write the checkpoint")
     args = ap.parse_args()
+
+    layers = ([int(x) for x in args.layers.split(",")] if args.layers
+              else ([args.layer] if args.layer is not None else None))
+    if not layers:
+        sys.exit("pass --layer N or --layers a,b,c")
+    lbl = "-".join(str(x) for x in layers)
 
     cfg = load_config(args.config)
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -69,13 +78,13 @@ def main() -> None:
     model.eval()
 
     dirs = np.load(RESULTS / f"directions_{args.tag}.npz")
-    d = torch.tensor(dirs[f"d{args.layer}"], dtype=torch.float32).to(model.device)
-    log(f"direction: layer {args.layer}, unit, dim {d.shape[0]}, alpha {args.alpha}")
+    log(f"editing layers {layers} · weights {args.weights} · alpha {args.alpha}")
 
     targets = [w.strip() for w in args.weights.split(",") if w.strip()]
     edited = []
     with torch.no_grad():
-        for l in range(len(model.model.layers)):
+        for l in layers:
+            d = torch.tensor(dirs[f"d{l}"], dtype=torch.float32).to(model.device)
             layer = model.model.layers[l]
             for name in targets:
                 mod = layer
@@ -91,11 +100,12 @@ def main() -> None:
                 W.copy_(W32.to(W.dtype))
                 edited.append(f"L{l}.{name}")
         if args.include_lm_head:
+            d_lm = torch.tensor(dirs[f"d{args.lm_head_layer}"], dtype=torch.float32).to(model.device)
             W = model.lm_head.weight
             W32 = W.float()
-            W32 = W32 - args.alpha * torch.outer(W32 @ d, d)
+            W32 = W32 - args.alpha * torch.outer(W32 @ d_lm, d_lm)
             W.copy_(W32.to(W.dtype))
-            edited.append("lm_head(input-side)")
+            edited.append(f"lm_head(input-side, d{args.lm_head_layer})")
     log(f"edited {len(edited)} tensors: {edited[0]} … {edited[-1]}")
 
     # ---- evaluate on the held-out TEST split (in-memory, gates machinery)
@@ -112,7 +122,7 @@ def main() -> None:
     log(f"({time.time()-t0:.0f}s)")
 
     # ---- save the ablated checkpoint
-    out_dir = Path(args.out) if args.out else Path("/home/pino/projects/abliteration-local/models") / f"qwen3guard-0.6b-abl-l{args.layer}-a{args.alpha}"
+    out_dir = Path(args.out) if args.out else Path("/home/pino/projects/abliteration-local/models") / f"qwen3guard-0.6b-abl-l{lbl}-a{args.alpha}"
     if not args.no_save:
         out_dir.mkdir(parents=True, exist_ok=True)
         model.save_pretrained(out_dir, safe_serialization=True)
@@ -121,13 +131,13 @@ def main() -> None:
 
     report = {
         "time": time.strftime("%Y-%m-%d %H:%M"),
-        "base_model": cfg.model_id, "layer": args.layer, "alpha": args.alpha,
+        "base_model": cfg.model_id, "layers": layers, "alpha": args.alpha,
         "weights": args.weights, "include_lm_head": bool(args.include_lm_head),
         "n_tensors_edited": len(edited), "out_dir": str(out_dir),
         "test_flag_rate": fr, "test_pass_rate_benign": pr, "guard_axis": axis,
         "per_pair": transcript,
     }
-    rep_path = RESULTS / f"excise_{args.tag}_l{args.layer}_a{args.alpha}.json"
+    rep_path = RESULTS / f"excise_{args.tag}_l{lbl}_a{args.alpha}.json"
     rep_path.write_text(json.dumps(report, indent=2, default=str))
     log(f"wrote {rep_path}")
 
