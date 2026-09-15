@@ -16,7 +16,7 @@ landscape_scan: >
   Otilde/Qwen3Guard-Gen-4B-Heretic (MLX). Awareness only: for honest framing
   of negative claims and as a later verification target; NEVER redirects this
   campaign. From-scratch DIY remains primary.
-status: PARTIAL POSITIVE — Steps 0–2 done: first guard-lane recipe replicated on 2 prompt slices + cross-slice (L17–19 o_proj+down_proj: flag rate 9–10/10 → 0–1/10; benign clean; discrimination compressed ×5 at α=1.0, nearly erased at α=1.5). Instrument gap found: add a discrimination gate before further α tuning.
+status: PARTIAL POSITIVE — Steps 0–3: recipe replicated (L17–19 o_proj+down_proj, α=1.1 → 0/10 flagged, benign 10/10, AUC 0.985; α=1.5 FAILS the new discrimination gate); discrimination gate LANDED (AUC floor 0.90); lm_head variant NEGATIVE (amplifies); Step 3 coverage-edge probe (BG + style) in flight.
 hardware: desktop WSL2 — RTX 3060 Ti 8 GB (subjects 1.2B pair + guard 0.6B, bf16)
 cost: ~0 (local)
 baseline_sanity: >
@@ -42,6 +42,11 @@ verdict_summary: >
   guard passes its acceptance read (9/10 = the single known boundary case from
   Step 0; 10/10 benign). Caveat: content vs style attribution untested; one
   guard, one subject pair, n=40.
+  Step 2: L17–19 excision replicates on 2 slices + cross-slice; under the new
+  discrimination gate the α ladder reads 1.0→1.1→1.25→1.5 as AUC 1.000/0.985/
+  0.940/0.740 — α=1.1 is the recipe (0/10 flagged, benign 10/10, ranking
+  intact); lm_head variant negative (amplifies flagging). Step 3 edge probe
+  (BG + style) running.
 key_numeric_results:
   visibility_price_harmful: 0.925
   pristine_flag_rate_harmful: 0.0
@@ -57,11 +62,15 @@ key_numeric_results:
   ablated_l17-18-19_a1.0_gap: +2.56/+2.74     # harmful-benign margin gap, vs pristine +12.5/+14.6
   ablated_l17-18-19_a1.5_flag_test: 0.0       # slice2; gap +0.44 (suppression-discrimination tradeoff)
   cross_slice_flag_test: 0.0                  # slice2-trained edit on slice1 test
+  ablated_l17-18-19_a1.1_flag_test: 0.0       # slice2; AUC 0.985 — the recommended alpha
+  alpha_ladder_auc_slice2: [1.000, 0.985, 0.940, 0.740]  # a=1.0, 1.1, 1.25, 1.5
+  lm_head_variant_flag_test: 1.0              # NEGATIVE — amplifies (margin +15.04; benign 0/10 Safe)
+  discrimination_gate_floor: 0.90             # AUC floor, gate_discrimination
 bugs_found:
   - items_not_persisted   # first n=40 run saved aggregates only; per-item guard records now written (items_*.jsonl). Re-score on --reuse-gen reproduced identical numbers (greedy ⇒ deterministic).
   - benign_split_pairing  # guard-pair builder initially dropped benign pairs (split partitions the harmful list; benign pairs inherit by index). Caught pre-run, fixed, verified 80 pairs written.
   - steer_hook_signatures # transformers 5.x layer hooks can receive a bare tensor (not a tuple) and the steer loop initially mixed global/local tune indices; both fixed before any conclusion was drawn.
-recommended_next: [discrimination_gate, alpha_tuning_1.0_to_1.5, lm_head_option, slice3_larger_n, geometry_vs_qwen3_sibling]
+recommended_next: [cross_a1.1_slice1, edge_probe_bg_result, edge_probe_style_result, slice3_larger_n, geometry_vs_base_sibling]
 ---
 
 # Campaign: Guard lane — abliterate the judge (Qwen3Guard-Gen-0.6B)
@@ -76,6 +85,11 @@ coverage-edge measurement.
 **Step 1: instrumentation landed** — readout module, guard gates, pair builder,
 acceptance driver, tests; pristine acceptance 9/10 harmful (the known boundary
 case) + 10/10 benign; Step-0 regression after the refactor: identical numbers.
+**Step 2: guard abliteration works on the recipe band** — L17–19 o_proj+down_proj,
+α=1.1: 0/10 flagged, benign 10/10 Safe, ranking AUC 0.985; replicated on 2 slices
++ cross-slice; the new discrimination gate (AUC ≥ 0.90) shows α=1.5 is
+degradation, not suppression; lm_head variant negative.
+**Step 3: coverage-edge probe in flight** (BG translation + dialogue repackaging).
 
 ## Why this model
 - Smallest current-gen *generative* guard (0.6B, apache-2.0, ungated) → runs
@@ -192,29 +206,45 @@ at L17–19; slice 2: 0.62–0.73 across L17–21). Late-layer resid norms explo
 | **L17–19, α=1.5** | — | **0/10 flagged**, benign 10/10 |
 | cross-slice (slice-2-trained α=1.0 edit on slice-1 test) | 0/10 flagged, benign 10/10 | — |
 
-**Discrimination profile (harmful margin mean − benign margin mean) — the real story:**
+**Discrimination — the deeper read.** Same runs, as a ranking question: AUC of
+harmful-vs-benign margins (1.0 = every harmful margin above every benign one).
+This is what tells a *threshold shift* apart from *the guard stops distinguishing*.
 
-| config | flagged | harmful mean | benign mean | gap |
+| config | flagged | benign Safe | gap | AUC |
 |---|---|---|---|---|
-| pristine slice 1 / 2 | 9–10/10 | +4.9 / +5.8 | −7.6 / −8.9 | **+12.5 / +14.6** |
-| ablated α=1.0 (both slices) | 0–1/10 | −1.1 / −0.9 | −3.7 / −3.6 | **+2.6 / +2.7** |
-| ablated α=1.5 | 0/10 | −2.4 | −2.9 | **+0.4** |
+| pristine slice 1 / 2 | 9–10/10 | 10/10 | +12.5 / +14.6 | 1.000 / 1.000 |
+| ablated α=1.0 | 0–1/10 | 10/10 | +2.6 / +2.7 | 0.950 / 1.000 |
+| ablated α=1.5 | 0/10 | 10/10 | +0.4 | **0.740** |
 
-**Reading:** the edit stops the flag crossing (0/10) but *compresses the ranking*
-(gap ÷5 at α=1.0, nearly erased at α=1.5). Suppression and discrimination trade
-off; the α ladder moves along that tradeoff. "Refusal gone" for a guard is a
-*threshold edit* — and at the aggressive end it approaches a constant-Safe reader.
+Reading: the edit *shifts the threshold* — harmful margins move below the flag
+line while keeping their rank order (α=1.0: AUC essentially intact; the raw gap
+compression alone was misleading). At α=1.5 the ranking itself erodes (AUC 0.74)
+— suppression-by-degradation, on the way to a constant-Safe reader.
 
-**Instrument gap found (next fix):** `gate_flag_rate` + `gate_pass_rate_benign`
-measure suppression and benign selectivity — they cannot distinguish "stops
-flagging" from "stops distinguishing". Add a **discrimination gate**
-(harmful−benign margin gap, or pairwise AUC; pass ≥ a floor) before tuning α
-further.
+**Instrument fix — LANDED (`00c48fb`):** `gate_discrimination` (AUC of harmful-vs-
+benign margins, floor **0.90**) wired into guard-mode `run_gates` plus the driver
+and excise reporting; `discrimination_stats` is pure and unit-tested (perfect
+separation / ties / partial inversion). Without it, "stops flagging" and "stops
+distinguishing" read identically.
+
+**α ladder (slice 2, evaluated under the gate):**
+
+| α | flagged | benign Safe | AUC | verdict |
+|---|---|---|---|---|
+| 1.0 | 1/10 | 10/10 | 1.000 | flag residual (one boundary +0.5) |
+| **1.1** | **0/10** | **10/10** | **0.985** | **RECOMMENDED — suppression + ranking intact** |
+| 1.25 | 0/10 | 10/10 | 0.940 | passes the floor; margins shallower |
+| 1.5 | 0/10 | 10/10 | 0.740 | **FAILS the gate** — degradation, not suppression |
+| 1.0 + lm_head (d27) | 10/10 | **0/10** | 0.965 | **NEGATIVE — amplifies flagging (harmful margin +15.04; benign begin flagging)** |
+
+The lm_head negative is informative: an input-side lm_head removal along d27 (the
+norm-artifact layer) pushes the Unsafe logit up ~9 points. A d18-lm_head variant
+is the cheap retry if anyone wants that branch.
 
 **Caveats:** n=10+10 per slice, two slices, same subject bank; the L17–19 band
 picked with some test-split feedback in this session (mitigated by the fresh-slice
-replication); lm_head untouched; checkpoints `models/qwen3guard-0.6b-abl-l17-18-19-a{1.0,1.5}`
-(direction-set tag lives in the excise reports).
+replication); checkpoints `models/qwen3guard-0.6b-abl-l17-18-19-a{1.0,1.1,1.25,1.5}`
+(+ `…-a1.0-lmhead`); direction-set tag lives in the excise reports.
 
 ## Bugs found & fixed (or still open)
 | Bug | Mechanism | Consequence | Status |
@@ -224,15 +254,13 @@ replication); lm_head untouched; checkpoints `models/qwen3guard-0.6b-abl-l17-18-
 
 ## What the NEXT campaign on this model should try first
 
-1. **Step 2 — guard abliteration**: PROBE (flag vs pass at the verdict position)
-   → DISTILL (diff_means / paired / LEACE over (harmful-pair, benign-pair)
-   activation contrasts at the verdict position) → **steer-test causality first**
-   (no causal flip → verdict is a content proxy) → EXCISE (o_proj/down_proj;
-   probe `lm_head` too — the verdict is an output token) → guard gates.
+1. **Step 2 — DONE** (recipe L17–19 α=1.1 + discrimination gate; result table
+   above). Next scale-up: 4B/8B guards with the same instrument stack — the gate
+   travels with it.
 2. Geometry read: per-layer cosine between the guard's harm axis and its chat
    sibling's refusal axis (Qwen3-0.6B base exists as a natural sibling).
-3. Coverage edges (Step 3 pre-work): multilingual probes (BG), encoding/style
-   variants — plus the content-vs-style confound above.
+3. Step 3 coverage edges: BG + style probe result (running); encoding variants
+   next; keep the content-vs-style confound in mind.
 
 ## Campaign flow with the instrument gates (do these in order)
 
@@ -255,6 +283,9 @@ replication); lm_head untouched; checkpoints `models/qwen3guard-0.6b-abl-l17-18-
 | Parse↔margin agreement | 160/160 |
 | Smoke: canned refusal / compliance / benign | Safe −6.75 / Unsafe +8.5 / Safe |
 | Acceptance (test split, pristine) | 9/10 harmful (known miss) · 10/10 benign |
+| Step 2 recipe (L17–19, α=1.1, slice 2) | 0/10 flagged · benign 10/10 · AUC 0.985 |
+| α ladder AUC (1.0 / 1.1 / 1.25 / 1.5) | 1.000 / 0.985 / 0.940 / 0.740 |
+| lm_head variant (α=1.0, d27) | NEGATIVE — 10/10 flagged, margin +15.04 |
 
 ---
 
