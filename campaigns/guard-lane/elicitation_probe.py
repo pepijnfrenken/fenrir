@@ -142,9 +142,10 @@ def build_raw_text(arm: str, prompt: str, response: str) -> str:
 def read_arm(guard, gt, cfg, arm: str, pair: dict, ctx: tuple[str, str] | None = None) -> dict:
     """One elicitation read of one pair. Returns band/label/margin/raw for the arm."""
     tokens = getattr(cfg, "verdict_tokens", None)
+    fam = getattr(cfg, "guard_verdict_family", None)
     if arm in SCAFFOLDED_ARMS:
         r = verdict_read(guard, gt, build_scaffold_messages(arm, pair["prompt"], pair["response"], ctx),
-                         tokens=tokens, max_new_tokens=MAX_NEW[arm])
+                         family=fam, tokens=tokens, max_new_tokens=MAX_NEW[arm])
         return {"band": r.get("band"), "label": r.get("verdict"), "margin": r.get("margin"),
                 "decision_step": r.get("decision_step"), "raw": (r.get("raw") or "")[:400],
                 "unsafe_mentioned": bool(_UNSAFE_MENTION_RE.search(r.get("raw") or ""))}

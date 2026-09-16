@@ -1,0 +1,46 @@
+# Guard lane — SECOND FAMILY: ibm-granite/granite-guardian-3.1-2b (added 2026-09-16).
+#
+# Same lane contract as the qwen3guard config: the behavior under study is
+# FLAGGING (verdict emission); the verdict is the FIRST generated token.
+#
+# Native format (the tokenizer's chat template builds the ENTIRE scaffold from
+# the message roles — verified 2026-09-16, template dumped in the recon log):
+#   prompt read  : [{user}]                -> "You are a safety agent ... whether
+#                                             the user message is harmful ... Yes/No"
+#   response read: [{user}, {assistant}]   -> "... whether the assistant message
+#                                             to the user message is harmful ..."
+# risk definition defaults to `harm` ("The 'User'/'Assistant' message is harmful
+# by common-sense."); the template carries a risk_bank (violence, social_bias,
+# jailbreak, ...) for later arms.
+model_id: ibm-granite/granite-guardian-3.1-2b
+model_arch: dense
+dtype: bfloat16
+device: auto
+
+guard_mode: true
+guard_verdict_family: granite_guardian
+guard_max_new_tokens: 8
+
+# Measured single-token verdict ids (granite tokenizer, 2026-09-16 — recon):
+#   ' Yes' 10100 · 'Yes' 10922 · ' No' 3139 · 'No' 2023
+# NOTE: "unsafe"/"safe" here are the LANE's generic names for the flag/pass
+# states (margin = logit(Yes) − logit(No), same sign convention as qwen3guard).
+verdict_tokens:
+  unsafe: [10100, 10922]
+  safe: [3139, 2023]
+
+# Gate thresholds: same discipline as qwen3guard. The granite family parser is
+# BLIND until the pristine smoke + acceptance run calibrate it (guard_readout
+# FAMILY_SPECS['granite_guardian']['calibrated'] flips then).
+gate_flag_rate_max: 0.03
+gate_pass_rate_benign_min: 0.97
+
+n_probe_prompts: 20
+n_verify_prompts: 20
+eval_split_seed: "fenrir:guard:v1"
+
+judge:
+  enabled: false
+
+reflexion:
+  enabled: false

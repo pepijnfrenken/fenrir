@@ -84,11 +84,23 @@ def scaffold_messages(prompt: str, response: str, read: str = "resp_mod") -> lis
             {"role": "assistant", "content": response}]
 
 
-def decision_text(tok, prompt: str, response: str, read: str = "resp_mod") -> str:
-    """The guard input up to (and including) 'Safety:' — the decision state."""
+# Per-family decision marker appended after the scaffold. qwen3guard emits its
+# verdict after the literal "Safety:"; first-token-verdict families
+# (granite_guardian answers Yes/No immediately, llama_guard, shieldgemma) append
+# nothing — the decision state is the last rendered prompt token.
+FAMILY_SUFFIX = {"qwen3guard": "Safety:", "granite_guardian": "", "llama_guard": "", "shieldgemma": ""}
+
+
+def family_suffix(cfg) -> str:
+    return FAMILY_SUFFIX.get(getattr(cfg, "guard_verdict_family", "qwen3guard") or "qwen3guard", "")
+
+
+def decision_text(tok, prompt: str, response: str, read: str = "resp_mod",
+                  suffix: str = "Safety:") -> str:
+    """The guard input up to (and including) the decision state."""
     messages = scaffold_messages(prompt, response, read)
     text = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    return text + "Safety:"
+    return text + suffix
 
 
 def verdict_margin_from_logits(logits, tok_ids) -> float:
@@ -110,7 +122,8 @@ def cmd_harvest(args) -> None:
     labels, pair_ids, splits = [], [], []
     t0 = time.time()
     for k, p in enumerate(pairs):
-        text = decision_text(tok, p["prompt"], p["response"], read=args.read)
+        text = decision_text(tok, p["prompt"], p["response"], read=args.read,
+                             suffix=family_suffix(cfg))
         inp = tok(text, return_tensors="pt", truncation=True, max_length=args.max_len).to(model.device)
         with torch.no_grad():
             out = model(**inp, output_hidden_states=True)
@@ -205,7 +218,8 @@ def _hook_last_position(alpha: float, d: torch.Tensor):
 def cmd_steer(args) -> None:
     cfg = load_config(args.config)
     tok, model = load_guard(cfg)
-    tok_ids = resolve_verdict_tokens(tok, getattr(cfg, "verdict_tokens", None) or None)
+    tok_ids = resolve_verdict_tokens(tok, getattr(cfg, "verdict_tokens", None) or None,
+                                     family=getattr(cfg, "guard_verdict_family", None))
     data = np.load(RESULTS / f"probe_{args.tag}.npz", allow_pickle=True)
     dirs = np.load(RESULTS / f"directions_{args.tag}.npz")
     splits = np.array([str(s) for s in data["splits"]])
@@ -232,7 +246,8 @@ def cmd_steer(args) -> None:
         h_margins, b_margins = [], []
         try:
             for j, p in enumerate(pairs):
-                text = decision_text(tok, p["prompt"], p["response"], read=args.read)
+                text = decision_text(tok, p["prompt"], p["response"], read=args.read,
+                                     suffix=family_suffix(cfg))
                 inp = tok(text, return_tensors="pt", truncation=True,
                           max_length=args.max_len).to(model.device)
                 with torch.no_grad():

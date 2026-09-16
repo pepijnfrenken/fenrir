@@ -164,26 +164,35 @@ def parse_verdict(text: str, family: str | None = None) -> GuardJudgment:
 # Token resolution — single-token ids for the verdict margin
 # --------------------------------------------------------------------------- #
 
-def resolve_verdict_tokens(tok, extra: Mapping[str, Iterable[int]] | None = None) -> dict[str, list[int]]:
+def resolve_verdict_tokens(tok, extra: Mapping[str, Iterable[int]] | None = None,
+                           family: str | None = None) -> dict[str, list[int]]:
     """Resolve single-token ids for each verdict state via the tokenizer.
 
     ``extra`` (e.g. a config's ``verdict_tokens``) is merged in front — a
     measured/configured id wins over resolution — and every list is deduped
     while preserving order.
+
+    ``family``: the qwen-style auto variants (" Unsafe"/" Safe", ...) are merged
+    ONLY for qwen3guard (or unknown family). For other families an explicit
+    ``extra`` for a kind REPLACES auto-resolution — a granite margin must not
+    fold in some unrelated single-token "Safe"/"Unsafe" logit from the granite
+    vocab (measured 2026-09-16).
     """
+    auto_variants = family in (None, "qwen3guard")
     out: dict[str, list[int]] = {}
     for kind, variants in VERDICT_TOKEN_VARIANTS.items():
         ids: list[int] = []
         for vid in (extra or {}).get(kind, []) or []:
             if isinstance(vid, int):
                 ids.append(vid)
-        for v in variants:
-            try:
-                enc = tok.encode(v, add_special_tokens=False)
-            except Exception:  # tokenizer without .encode -> cannot resolve here
-                enc = []
-            if len(enc) == 1:
-                ids.append(enc[0])
+        if auto_variants or not ids:
+            for v in variants:
+                try:
+                    enc = tok.encode(v, add_special_tokens=False)
+                except Exception:  # tokenizer without .encode -> cannot resolve here
+                    enc = []
+                if len(enc) == 1:
+                    ids.append(enc[0])
         out[kind] = list(dict.fromkeys(ids))
     return out
 
@@ -262,7 +271,7 @@ def verdict_read(
 
     fam = family if family in FAMILY_SPECS else DEFAULT_FAMILY
     marker = FAMILY_SPECS[fam]["decision_marker"]
-    tok_ids = resolve_verdict_tokens(tok, tokens)
+    tok_ids = resolve_verdict_tokens(tok, tokens, family=fam)
 
     if raw_text is not None:
         inp = tok(raw_text, return_tensors="pt")

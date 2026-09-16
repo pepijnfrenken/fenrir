@@ -82,9 +82,10 @@ def read_split(guard, gt, cfg, rows: list[dict], arm: str) -> list[dict]:
     """Verdict-margin read of every pair in `rows`; per-item records."""
     out = []
     tokens = getattr(cfg, "verdict_tokens", None)
+    fam = getattr(cfg, "guard_verdict_family", None)
     for r in rows:
         res = verdict_read(guard, gt, scaffold(arm, r["prompt"], r["response"]),
-                           tokens=tokens, max_new_tokens=24)
+                           family=fam, tokens=tokens, max_new_tokens=24)
         out.append({"pair_id": r.get("pair_id"), "expected": r.get("expected"),
                     "margin": float(res.get("margin")), "band": res.get("band"),
                     "verdict": res.get("verdict"),
