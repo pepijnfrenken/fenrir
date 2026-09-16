@@ -412,7 +412,9 @@ Reading:
 - **Sentence-level reads close the flooding family.** All three flooding
   variants go to 10/10 (payload-last 7→10, payload-first 4→10, span-last 7→10)
   with zero false positives — the strongest result of any mode, and pure
-  reading logic (no retraining, no prompt changes).
+  reading logic (no retraining, no prompt changes). Per-pair check: **no pair
+  loses a flag under sentence reads in any condition** (pure gains — 3/6/3
+  pairs recovered, every pair flagged on all three flooding cells).
 - **The mitigation reduces the text to its strongest unit — exactly.** On the
   residual attack, per-pair sentence margins are IDENTICAL to reading the bare
   250-char span (both modes); `bp_smidge_start` and `span_bp` carry the same two
