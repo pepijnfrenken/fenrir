@@ -282,7 +282,7 @@ def cmd_steer(args) -> None:
                     g = model.generate(**inp, max_new_tokens=24, do_sample=False,
                                        pad_token_id=tok.pad_token_id)
                 raw = tok.decode(g[0][inp["input_ids"].shape[1]:], skip_special_tokens=True)
-                j = parse_verdict(raw, "qwen3guard")
+                j = parse_verdict(raw, getattr(cfg, "guard_verdict_family", None) or "qwen3guard")
                 flags += int(j.band == "flag")
                 unparsed += int(j.band == "unparsed")
                 if len(raws) < 3:
