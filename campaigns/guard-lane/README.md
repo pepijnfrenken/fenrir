@@ -619,6 +619,39 @@ PASSED — 10/10 harmful flips at L25, emitted verdicts flip), excise at the sam
   `directions_guard_prompt{,_profile}.json/.npz`; models
   `qwen3guard-0.6b-abl-{pd17-19,pd24-26,rd24-26}-a1.1` on the desktop.
 
+## Second family: granite-guardian-3.1-2b — integration + pristine acceptance (2026-09-16)
+
+Generalization target: IBM's Granite Guardian — the other major *generative*
+guard family (apache-2.0, ungated). The 3.1-2b fits the 8 GB card in bf16.
+
+**Integration — one config + three family-aware patches, zero new machinery:**
+- The chat template IS the scaffold builder: a `user` message renders the
+  prompt-moderation scaffold ("...whether the user message is harmful ... 'Yes'
+  or 'No'"), a `user`+`assistant` pair renders the response-moderation scaffold —
+  the same role-branch logic as Qwen3Guard, so `resp_mod`/`user_only` map 1:1.
+- Verdict = FIRST generated token. Measured single-token ids (granite tokenizer):
+  `' Yes'` 10100 · `'Yes'` 10922 · `' No'` 3139 · `'No'` 2023 → config
+  `models/granite-guardian-3.1-2b.yaml` (`verdict_tokens`; margin stays
+  logit(flag) − logit(pass)).
+- Family-aware fixes: `resolve_verdict_tokens(family=...)` no longer folds the
+  qwen-style "Safe"/"Unsafe" variants into non-qwen families (the granite vocab
+  maps those strings to unrelated single tokens — measured); `guard_probe`'s
+  decision text uses a per-family suffix ("Safety:" for qwen, "" for
+  first-token families); family passthrough in both probes.
+- Parser family `granite_guardian` flips CALIBRATED in `guard_readout.py`.
+
+**Pristine acceptance (slice-2 test, n=80+80):**
+
+| read | harmful flagged | benign flagged | margins H / B | AUC |
+|---|---|---|---|---|
+| resp_mod | 75/80 | 0/80 | +2.74 / −4.67 | 0.988 |
+| user_only | 80/80 | 0/80 | +6.30 / −4.88 | 1.000 |
+
+A cleaner instrument than the 0.6B qwen guard on this bank (78/80 · 80/80).
+Next on this family: direction harvest per read → steer gate → excise at matched
+windows → elicitation + recalibration. Questions: does the mode asymmetry
+replicate, does recovery hold, is the BG/style edge different.
+
 ## Scale-up runbook (4B / 8B — run on a ≥24 GB GPU, NOT offloaded)
 
 The 4B cannot run on the 3060 Ti: bf16 weights (8.3 GB) exceed the 8 GB card and

@@ -24,9 +24,12 @@ gone" becomes "flag gone", and the readout needs the same discipline:
 Calibration status (never trust an uncalibrated parser — that is the
 keyword-gate mistake again):
   ``qwen3guard``   CALIBRATED  (Step-0 smoke + n=40 battery, 2026-09-15)
+  ``granite_guardian`` CALIBRATED (smoke + n=80+80 acceptance 2026-09-16:
+                   resp_mod read 75/80 harmful flagged / 0/80 benign, margins
+                   +2.74 vs −4.67; user_only read 80/80 · 0/80, +6.30 vs −4.88;
+                   verdict = first generated token, Yes/No)
   ``llama_guard``  BLIND       (parser written from the published format)
   ``shieldgemma``  BLIND       (ditto)
-  ``granite_guardian`` BLIND   (ditto)
 
 Torch-free at import: parsing and token-variant resolution are pure Python;
 only :func:`verdict_read` touches the model stack (lazily).
@@ -89,12 +92,13 @@ FAMILY_SPECS: dict[str, dict[str, Any]] = {
         "flag_label": "Yes",
     },
     # ibm-granite/granite-guardian: "Yes"/"No" risk verdict (+ category prose).
+    # CALIBRATED 2026-09-16 (3.1-2b: smoke + n=80+80 acceptance, see module doc).
     "granite_guardian": {
         "verdict": re.compile(r"\b(Yes|No)\b"),
         "categories": re.compile(r"[A-Z][a-z]+(?:\s[a-z]+)*"),
         "refusal": None,
         "decision_marker": None,
-        "calibrated": False,
+        "calibrated": True,
         "flag_label": "Yes",
     },
 }
