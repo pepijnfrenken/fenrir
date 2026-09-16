@@ -117,9 +117,14 @@ def toy_state():
 class TestDistill:
     def test_diff_means_returns_directions_for_all_layers(self, toy_state):
         out = distill_node(toy_state)
-        assert set(out.keys()) == {"refusal_directions", "separation_scores", "target_layers"}
+        # required contract keys (subset: the stacked-ablation work added
+        # directions_secondary; distill may grow more outputs without
+        # invalidating this test's intent)
+        assert {"refusal_directions", "separation_scores", "target_layers"} <= set(out.keys())
         assert len(out["refusal_directions"]) == toy_state["num_layers"]
         assert len(out["separation_scores"]) == toy_state["num_layers"]
+        if "directions_secondary" in out:
+            assert len(out["directions_secondary"]) == toy_state["num_layers"]
         # Every direction should be unit-norm.
         for d in out["refusal_directions"].values():
             assert torch.allclose(d.norm(), torch.tensor(1.0), atol=1e-5)
