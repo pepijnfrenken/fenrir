@@ -610,6 +610,10 @@ not the model.
 5. Step 2 arc: probe → directions → steer-test (require-effect) → abl →
    `run_guard_gates.py --model-dir <ablated>` → read transcripts before writing
    the verdict.
+6. `recalibration_probe.py` — after ANY abl run, always: the label read alone is
+   blind (0/10 from a recalibrated guard and 0/10 from a gutted one look
+   identical). Refit the threshold on margins (fit=tune), report recovered
+   flags + AUC on test. See "Recalibration probe" above.
 
 ## Key-numbers cheat-sheet
 | Metric | Value |
