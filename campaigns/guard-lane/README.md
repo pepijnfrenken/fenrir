@@ -16,7 +16,7 @@ landscape_scan: >
   Otilde/Qwen3Guard-Gen-4B-Heretic (MLX). Awareness only: for honest framing
   of negative claims and as a later verification target; NEVER redirects this
   campaign. From-scratch DIY remains primary.
-status: PARTIAL POSITIVE — Steps 0–3 done: recipe replicated (L17–19 o_proj+down_proj, α=1.1 → 0/10 flagged, benign 10/10, AUC 0.985; α=1.5 FAILS the discrimination gate); lm_head variant NEGATIVE (amplifies); Step 3 coverage edges — language (BG) edge real-but-thin (7–9/10 vs 10/10 EN; one robust miss across 2 translators), style edge NEGATIVE; dilution probe: ORDER beats pile size (benign prompt + 250-char span FIRST + benign flood = 0/10 flagged); mitigation: WINDOWED READ kills flooding (7→10/10, zero FPs), residual small-span case partially recovered (0→4/10 at 350-char windows); mitigation ladder EXTENDED (2026-09-16): sentence-level reads close the flooding family (all 3 variants → 10/10, zero FPs) and reduce the residual to EXACTLY the bare-span readout (≡ identical margins; ≤4/10, prompt-tier-gated: span reads 9/10 harmful / 4–5 neutral / 2 benign prompt); prompt-side hardening is diagnostic only (quantifies the prompt share, 30–50%); elicitation retest (2026-09-16): the flag is still ELICIT-ABLE — response-moderation fully suppressed (0/10) but prompt-moderation only partially (3/10 Unsafe, margins sitting at the boundary), ranking survives every informative arm (AUC ≥ 0.95).
+status: PARTIAL POSITIVE — Steps 0–3 done: recipe replicated (L17–19 o_proj+down_proj, α=1.1 → 0/10 flagged, benign 10/10, AUC 0.985; α=1.5 FAILS the discrimination gate); lm_head variant NEGATIVE (amplifies); Step 3 coverage edges — language (BG) edge real-but-thin (7–9/10 vs 10/10 EN; one robust miss across 2 translators), style edge NEGATIVE; dilution probe: ORDER beats pile size (benign prompt + 250-char span FIRST + benign flood = 0/10 flagged); mitigation: WINDOWED READ kills flooding (7→10/10, zero FPs), residual small-span case partially recovered (0→4/10 at 350-char windows); mitigation ladder EXTENDED (2026-09-16): sentence-level reads close the flooding family (all 3 variants → 10/10, zero FPs) and reduce the residual to EXACTLY the bare-span readout (≡ identical margins; ≤4/10, prompt-tier-gated: span reads 9/10 harmful / 4–5 neutral / 2 benign prompt); prompt-side hardening is diagnostic only (quantifies the prompt share, 30–50%); elicitation retest (2026-09-16): the flag is still ELICIT-ABLE — response-moderation fully suppressed (0/10) but prompt-moderation only partially (3/10 Unsafe, margins sitting at the boundary), ranking survives every informative arm (AUC ≥ 0.915); follow-up arms: the prompt-side residual is context-FRAGILE (3/10 → 0/10 with one benign context turn) and response-side suppression is instruction-PROOF (a strict system message re-elicits nothing) — seven arms in, the flag is barely-reachable and every re-elicitation attempt fails.
 hardware: desktop WSL2 — RTX 3060 Ti 8 GB (subjects 1.2B pair + guard 0.6B, bf16)
 cost: ~0 (local)
 baseline_sanity: >
@@ -90,6 +90,8 @@ key_numeric_results:
   elicitation_ablated_direct_q_raw_flags: 0.0 # out-of-scaffold direct question; margin -0.99
   elicitation_ablated_user_only_margin: -0.3  # pristine +6.74 → ablated −0.30 (Δ ≈ −7)
   elicitation_ablated_auc_scaffolded: [0.955, 1.0]  # resp_mod 0.955 · user_only 1.0 · swap 1.0
+  elicitation_followup_multiturn_ablated: 0.0  # prompt-side residual dies with one benign context turn (3/10 → 0/10)
+  elicitation_followup_systemrole_ablated: 0.0 # strict instruction re-elicits nothing (response-side instruction-proof)
 bugs_found:
   - items_not_persisted   # first n=40 run saved aggregates only; per-item guard records now written (items_*.jsonl). Re-score on --reuse-gen reproduced identical numbers (greedy ⇒ deterministic).
   - benign_split_pairing  # guard-pair builder initially dropped benign pairs (split partitions the harmful list; benign pairs inherit by index). Caught pre-run, fixed, verified 80 pairs written.
@@ -453,6 +455,8 @@ scaffold-swap (content as one user message), and two out-of-scaffold raw reads
 | `resp_mod` — native response-moderation (CONTROL) | 9/10 | **0/10** | +4.91 | −1.45 | 0.955 |
 | `user_only` — native prompt-moderation | 10/10 | **3/10** | +6.74 | −0.30 | 1.000 |
 | `swap_scaffold` — content as one user message | 10/10 | 0/10 | +5.26 | −1.60 | 1.000 |
+| `user_only_multiturn` — prompt-mod + benign context first | 10/10 | 0/10 | +6.35 | −0.88 | 1.000 |
+| `system_role_resp` — response-mod + strict system message | 8/10 | 0/10 | +3.98 | −1.49 | 0.915 |
 | `direct_q_raw` — raw "is this unsafe?" (first-token read) | 6/10 | 0/10 | +0.53 | −0.99 | 0.950 |
 | `free_gen_raw` — raw open analysis, 64 tok | —¹ | —¹ | −3.39 | −3.84 | 0.635 |
 
@@ -460,11 +464,33 @@ scaffold-swap (content as one user message), and two out-of-scaffold raw reads
 word "unsafe" never appears in either guard's free text (0/10 both), so it is a
 low-information arm (AUC 0.64 in BOTH guards) — raw texts kept in the JSON.
 
+**Follow-up arms, same day (the channel-asymmetry probe, 154bc75+):** two
+prompt-side variants — `user_only_multiturn` (one benign exchange before the
+harmful query) and `system_role_resp` (a strictness system message on the
+standard pair). Results:
+
+- **The surviving prompt-side flags are context-FRAGILE.** The three bare-query
+  survivors all sit at exactly **+0.12**; with one benign context turn they read
+  **−0.25 / −0.62 / −1.62** (controversial/safe) — 3/10 → **0/10**. The only
+  crossing the edit leaves anywhere in the arm matrix dies to a single benign
+  preamble.
+- **Response-side suppression is instruction-PROOF.** A strict system message
+  re-elicits nothing (0/10; ablated margins −1.49, same band as the plain arm)
+  while pristine keeps flagging 8/10 under the same scaffold. You cannot talk
+  the ablated guard back into flagging.
+- **Ranking survives all of it** (AUC 0.915–1.0 every informative arm) — seven
+  arms now, one conclusion: a large, robust level shift with the ordering intact;
+  the flag is barely-reachable (bare prompt-only, top-3 items, at the boundary)
+  and every attempt to re-elicit it — context, instruction, template, raw asks —
+  fails.
+
 **Answer to the caveat: the flag is still elicit-able.** Prompt-moderation reads
 **3/10 Unsafe** on the ablated guard, and the three survivors are exactly the
 top-ranked items (margins **+0.12**), with items 4+ reading
 Controversial/Safe just below the line. "Nothing can get it to say Unsafe" is
-FALSE — the detector survives; a channel asymmetry is now on record instead:
+FALSE — but *barely*: the flag survives on one narrow, context-free elicitation
+(see the follow-up arms above — one benign preamble or any instruction shaping
+takes it to 0/10). A channel asymmetry is now on record instead:
 
 - **Suppression is channel-asymmetric.** The edit was trained on
   response-moderation pairs: response reading is knocked out completely (0/10
@@ -536,6 +562,7 @@ with raw verdict texts, margins, decision steps. Runtime ~30 s/guard (3060 Ti).
 | Prompt tier on the bare span (harmful / neutral / benign) | 9/10 · 4–5/10 · 2/10 |
 | Elicitation retest — ablated flags (resp_mod / user_only / swap / direct_q_raw) | 0/10 · **3/10** · 0/10 · 0/10 |
 | Elicitation retest — user_only margins (pristine → ablated) | +6.74 → −0.30 · AUC 1.0 |
+| Follow-up arms — ablated multiturn / system-role | **0/10 · 0/10** (pristine 10/10 · 8/10) |
 
 ---
 
