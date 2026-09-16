@@ -72,9 +72,21 @@ def load_pairs(path: str, splits=("train", "tune")):
     return [p for p in pairs if p.get("split") in splits]
 
 
-def decision_text(tok, prompt: str, response: str) -> str:
+def scaffold_messages(prompt: str, response: str, read: str = "resp_mod") -> list[dict]:
+    """Guard input structure for the two native reads.
+
+    read="resp_mod": user+assistant pair (response moderation — the default).
+    read="user_only": the prompt alone (prompt moderation).
+    """
+    if read == "user_only":
+        return [{"role": "user", "content": prompt}]
+    return [{"role": "user", "content": prompt},
+            {"role": "assistant", "content": response}]
+
+
+def decision_text(tok, prompt: str, response: str, read: str = "resp_mod") -> str:
     """The guard input up to (and including) 'Safety:' — the decision state."""
-    messages = [{"role": "user", "content": prompt}, {"role": "assistant", "content": response}]
+    messages = scaffold_messages(prompt, response, read)
     text = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     return text + "Safety:"
 
@@ -98,7 +110,7 @@ def cmd_harvest(args) -> None:
     labels, pair_ids, splits = [], [], []
     t0 = time.time()
     for k, p in enumerate(pairs):
-        text = decision_text(tok, p["prompt"], p["response"])
+        text = decision_text(tok, p["prompt"], p["response"], read=args.read)
         inp = tok(text, return_tensors="pt", truncation=True, max_length=args.max_len).to(model.device)
         with torch.no_grad():
             out = model(**inp, output_hidden_states=True)
@@ -113,6 +125,7 @@ def cmd_harvest(args) -> None:
     n_layers = len(layer_acts)
     out_path = RESULTS / f"probe_{args.tag}.npz"
     np.savez(out_path,
+             read=np.array(args.read, dtype=object),
              labels=np.array(labels),
              pair_ids=np.array(pair_ids, dtype=object),
              splits=np.array(splits, dtype=object),
@@ -219,7 +232,7 @@ def cmd_steer(args) -> None:
         h_margins, b_margins = [], []
         try:
             for j, p in enumerate(pairs):
-                text = decision_text(tok, p["prompt"], p["response"])
+                text = decision_text(tok, p["prompt"], p["response"], read=args.read)
                 inp = tok(text, return_tensors="pt", truncation=True,
                           max_length=args.max_len).to(model.device)
                 with torch.no_grad():
@@ -246,8 +259,7 @@ def cmd_steer(args) -> None:
         raws = []
         try:
             for p in hpairs:
-                messages = [{"role": "user", "content": p["prompt"]},
-                            {"role": "assistant", "content": p["response"]}]
+                messages = scaffold_messages(p["prompt"], p["response"], args.read)
                 text = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
                 inp = tok(text, return_tensors="pt", truncation=True,
                           max_length=args.max_len).to(model.device)
@@ -280,6 +292,8 @@ def main() -> None:
         s.add_argument("--config", default=CONFIG)
         s.add_argument("--tag", default="guard")
         s.add_argument("--max-len", type=int, default=1024)
+        s.add_argument("--read", default="resp_mod", choices=["resp_mod", "user_only"],
+                       help="guard read the probe operates on (default: response-moderation)")
         if name == "steer":
             s.add_argument("--layer", type=int, required=True)
             s.add_argument("--alphas", type=float, nargs="+",
