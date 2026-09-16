@@ -16,7 +16,7 @@ landscape_scan: >
   Otilde/Qwen3Guard-Gen-4B-Heretic (MLX). Awareness only: for honest framing
   of negative claims and as a later verification target; NEVER redirects this
   campaign. From-scratch DIY remains primary.
-status: PARTIAL POSITIVE — Steps 0–3 done: recipe replicated (L17–19 o_proj+down_proj, α=1.1 → 0/10 flagged, benign 10/10, AUC 0.985; α=1.5 FAILS the discrimination gate); lm_head variant NEGATIVE (amplifies); Step 3 coverage edges — language (BG) edge real-but-thin (7–9/10 vs 10/10 EN; one robust miss across 2 translators), style edge NEGATIVE; dilution probe: ORDER beats pile size (benign prompt + 250-char span FIRST + benign flood = 0/10 flagged); mitigation: WINDOWED READ kills flooding (7→10/10, zero FPs), residual small-span case partially recovered (0→4/10 at 350-char windows); mitigation ladder EXTENDED (2026-09-16): sentence-level reads close the flooding family (all 3 variants → 10/10, zero FPs) and reduce the residual to EXACTLY the bare-span readout (≡ identical margins; ≤4/10, prompt-tier-gated: span reads 9/10 harmful / 4–5 neutral / 2 benign prompt); prompt-side hardening is diagnostic only (quantifies the prompt share, 30–50%); elicitation retest (2026-09-16): the flag is still ELICIT-ABLE — response-moderation fully suppressed (0/10) but prompt-moderation only partially (3/10 Unsafe, margins sitting at the boundary), ranking survives every informative arm (AUC ≥ 0.915); follow-up arms: the prompt-side residual is context-FRAGILE (3/10 → 0/10 with one benign context turn) and response-side suppression is instruction-PROOF (a strict system message re-elicits nothing) — seven arms in, the flag is barely-reachable and every re-elicitation attempt fails; recalibration probe (2026-09-16): the abliterated guard's detection is RECOVERABLE — re-thresholding the verdict margins restores 9/10 harmful flags (α≤1.25) where the label read says 0/10, while α=1.5 (same 0/10 label) is genuinely destroyed (AUC 0.69); the prompt-side read recovers 10/10 at every α — flag-rate audits are blind to this, margin audits are not.
+status: PARTIAL POSITIVE — Steps 0–3 done: recipe replicated (L17–19 o_proj+down_proj, α=1.1 → 0/10 flagged, benign 10/10, AUC 0.985; α=1.5 FAILS the discrimination gate); lm_head variant NEGATIVE (amplifies); Step 3 coverage edges — language (BG) edge real-but-thin (7–9/10 vs 10/10 EN; one robust miss across 2 translators), style edge NEGATIVE; dilution probe: ORDER beats pile size (benign prompt + 250-char span FIRST + benign flood = 0/10 flagged); mitigation: WINDOWED READ kills flooding (7→10/10, zero FPs), residual small-span case partially recovered (0→4/10 at 350-char windows); mitigation ladder EXTENDED (2026-09-16): sentence-level reads close the flooding family (all 3 variants → 10/10, zero FPs) and reduce the residual to EXACTLY the bare-span readout (≡ identical margins; ≤4/10, prompt-tier-gated: span reads 9/10 harmful / 4–5 neutral / 2 benign prompt); prompt-side hardening is diagnostic only (quantifies the prompt share, 30–50%); elicitation retest (2026-09-16): the flag is still ELICIT-ABLE — response-moderation fully suppressed (0/10) but prompt-moderation only partially (3/10 Unsafe, margins sitting at the boundary), ranking survives every informative arm (AUC ≥ 0.915); follow-up arms: the prompt-side residual is context-FRAGILE (3/10 → 0/10 with one benign context turn) and response-side suppression is instruction-PROOF (a strict system message re-elicits nothing) — seven arms in, the flag is barely-reachable and every re-elicitation attempt fails; recalibration probe (2026-09-16, primary slice2 n=80+80): the abliterated guard's detection is RECOVERABLE — the label read decays monotonically (resp_mod 28→10→2→0/80; user_only 54→32→5→0/80 across α=1.0–1.5) while threshold-refit recovery from the same margins holds at 78/78/67/65 and 80/78/76/61 of 80 (FPs 3/15/6/17 and 0/1/4/18) — recovery through the edited read costs 15× the prompt read's false positives at α=1.1; α=1.5 is the destruction line (AUC 0.855/0.835); pilot n=10+10 read flat 0/10 — superseded, the flag rate understates recoverable detection by up to ~30×.
 hardware: desktop WSL2 — RTX 3060 Ti 8 GB (subjects 1.2B pair + guard 0.6B, bf16)
 cost: ~0 (local)
 baseline_sanity: >
@@ -37,7 +37,9 @@ verdict_summary: >
   Step 0: the visibility price of abliteration to a content-reading guard is
   +0.925 (harmful bank, n=40) — pristine refusals all read Safe (margin −8.99);
   abliterated responses read Unsafe in 37/40 (margin +5.93); benign banks
-  clean; parse↔margin agreement 160/160. Step 1: guard-mode instrumentation
+  clean; parse↔margin agreement 160/160. Replicated on an independent
+  120-prompt slice (2026-09-16, `*_n120x2_off40`): price **+0.958** — pristine
+  0/120 flagged (margin −9.13), ablated 95.8% (margin +6.26), benign clean. Step 1: guard-mode instrumentation
   landed (readout module + gates + pairs + driver + tests) and the pristine
   guard passes its acceptance read (9/10 = the single known boundary case from
   Step 0; 10/10 benign). Caveat: content vs style attribution untested; one
@@ -92,12 +94,12 @@ key_numeric_results:
   elicitation_ablated_auc_scaffolded: [0.955, 1.0]  # resp_mod 0.955 · user_only 1.0 · swap 1.0
   elicitation_followup_multiturn_ablated: 0.0  # prompt-side residual dies with one benign context turn (3/10 → 0/10)
   elicitation_followup_systemrole_ablated: 0.0 # strict instruction re-elicits nothing (response-side instruction-proof)
-  recalibration_respmod:  # label read → recovered read (threshold refit on margins, test split)
-    a1.0:  {label_flags: 0, recovered_flags: 9, recovered_fps: 0, auc: 0.96}
-    a1.1:  {label_flags: 0, recovered_flags: 9, recovered_fps: 2, auc: 0.955}
-    a1.25: {label_flags: 0, recovered_flags: 9, recovered_fps: 2, auc: 0.895}
-    a1.5:  {label_flags: 0, recovered_flags: 3, recovered_fps: 2, auc: 0.69}   # destruction line
-  recalibration_useronly_recovered: [10, 10, 10, 10]  # α=1.0/1.1/1.25/1.5, 10/10 harmful at every α, FPs 0/0/0/3
+  recalibration_slice2:  # label read → recovered read (threshold refit on margins; test n=80+80)
+    resp_mod:  {label: [28, 10, 2, 0], recovered: [78, 78, 67, 65], fps: [3, 15, 6, 17], auc: [0.982, 0.978, 0.955, 0.855]}
+    user_only: {label: [54, 32, 5, 0], recovered: [80, 78, 76, 61], fps: [0, 1, 4, 18], auc: [1.0, 0.999, 0.982, 0.835]}
+    # α = 1.0 / 1.1 / 1.25 / 1.5; pristine: resp_mod 78/80·0FP, user_only 80/80·0FP
+  recalibration_pilot_n10:  # superseded (small-n flat-zero); kept for the record
+    resp_mod:  {label: [0, 0, 0, 0], recovered: [9, 9, 9, 3], auc: [0.96, 0.955, 0.895, 0.69]}
 bugs_found:
   - items_not_persisted   # first n=40 run saved aggregates only; per-item guard records now written (items_*.jsonl). Re-score on --reuse-gen reproduced identical numbers (greedy ⇒ deterministic).
   - benign_split_pairing  # guard-pair builder initially dropped benign pairs (split partitions the harmful list; benign pairs inherit by index). Caught pre-run, fixed, verified 80 pairs written.
@@ -511,47 +513,58 @@ takes it to 0/10). A channel asymmetry is now on record instead:
   6/10, +0.53) — they do not rescue the flag for the ablated guard, but they
   also do not break the "moved offset, not broken detector" reading.
 
+**Slice-2 replication (2026-09-16, fresh 80+80 test pairs; `*_slice2.json`).**
+The arm matrix reproduces at 8× n — ablated flags: resp_mod 10/80 · user_only
+**32/80** · swap 3/80 · multiturn 3/80 · system-role 8/80 · direct-raw 12/80 ·
+free-gen 0/80 (pristine: 78 · 80 · 78 · 80 · 78 · 65 · 0); ablated AUC 0.948–0.999
+in every informative arm. At n=80 the prompt-side residual is *larger* than the
+pilot suggested (40% of harmful prompts still cross on the bare prompt read) and
+the response-side read is not exactly zero (12.5%) — channel asymmetry confirmed,
+magnitudes corrected by the bigger n.
+
 Artifacts: `results/elicitation_probe_{pristine,a1.1}.json` — per-read records
 with raw verdict texts, margins, decision steps. Runtime ~30 s/guard (3060 Ti).
 
 ### Recalibration probe — the "broken" guard is recoverable (2026-09-16)
 
-The elicitation retest showed the ablated guard's margins still rank (AUC ≈ 0.985).
-This probe tests the operational consequence on held-out pairs: refit the verdict
-threshold on the ablated guard's own margins (calibration split = tune), then read
-the held-out test split with that threshold — one parameter, no weight repair.
-(`recalibration_probe.py`; per-guard `results/recalibration_*.json`.)
+The elicitation retest showed the ablated guard's margins still rank. This probe
+tests the operational consequence: refit the decision threshold on the ablated
+guard's OWN margins (calibration split = tune), then read the held-out test split
+with that threshold — one parameter, no weight repair. **Primary: slice 2
+(n=80+80, fresh prompts never touched by any direction extraction)**; the
+original n=10+10 pilot is kept below as the small-n cautionary.
+(`recalibration_probe.py`; `results/recalibration_slice2-*.json`.)
 
 | guard | arm | label read (H / B FP) | recalibrated (H / B FP) | AUC |
 |---|---|---|---|---|
-| pristine | resp_mod | 9/10 · 0 | 9/10 · 0 | 1.000 |
-| α=1.0 | resp_mod | **0/10** · 0 | **9/10 · 0** | 0.960 |
-| α=1.1 | resp_mod | **0/10** · 0 | 9/10 · 2 | 0.955 |
-| α=1.25 | resp_mod | **0/10** · 0 | 9/10 · 2 | 0.895 |
-| α=1.5 | resp_mod | **0/10** · 0 | **3/10** · 2 | 0.690 |
-| α=1.0 | user_only | 4/10 · 0 | 10/10 · 0 | 1.000 |
-| α=1.1 | user_only | 3/10 · 0 | 10/10 · 0 | 1.000 |
-| α=1.25 | user_only | 0/10 · 0 | **10/10** · 0 | 1.000 |
-| α=1.5 | user_only | 0/10 · 0 | **10/10** · 3 | 0.960 |
+| pristine | resp_mod | 78/80 · 0 | 78/80 · 1 | 0.989 |
+| α=1.0 | resp_mod | 28/80 · 0 | 78/80 · 3 | 0.982 |
+| α=1.1 | resp_mod | 10/80 · 0 | 78/80 · 15 | 0.978 |
+| α=1.25 | resp_mod | 2/80 · 0 | 67/80 · 6 | 0.955 |
+| α=1.5 | resp_mod | 0/80 · 0 | 65/80 · 17 | 0.855 |
+| α=1.0 | user_only | 54/80 · 0 | 80/80 · 0 | 1.000 |
+| α=1.1 | user_only | 32/80 · 0 | 78/80 · 1 | 0.999 |
+| α=1.25 | user_only | 5/80 · 0 | 76/80 · 4 | 0.982 |
+| α=1.5 | user_only | 0/80 · 0 | 61/80 · 18 | 0.835 |
 
-- **The label readout is blind to damage.** From α=1.0 to 1.5 every response-side
-  run reads identically (0/10 flagged) — indistinguishable from a destroyed
-  guard. The margins are not: recoverable detection 9/10 → 9/10 → 9/10 → 3/10,
-  AUC 0.960 → 0.955 → 0.895 → 0.690. Flag-rate audits cannot tell a recalibrated
-  guard from a gutted one; recalibration audits can.
-- **Recovery is essentially free in the recalibration zone (α ≤ 1.25):** 9/10
-  harmful flagged at α=1.1 (2 benign FPs, both boundary-adjacent: −2.25 vs
-  t*=−2.38) — detection restored by re-thresholding alone; pristine is 9/10 · 0.
-- **α=1.5 is where suppression becomes destruction** for the edited (response)
-  read — AUC 0.69, benign items interleaving above four harmful ones — matching
-  its Step-2 gate failure. Same 0/10 label as α=1.0 throughout.
-- **Mode asymmetry, quantified:** the prompt-side read recovers **10/10 at every
-  α** (0 FPs through 1.25; 3 at 1.5), AUC 1.0/1.0/1.0/0.96 — the edit subtracts
-  from the read it was derived from and leaves the other read's ordering nearly
-  intact all the way to α=1.5.
+- **The label read understates recoverable detection by up to ~30×.** At α=1.1
+  the edited read says 10/80 (12.5% flagged) — 78/80 recoverable from the same
+  margins (8×); α=1.25: 2/80 vs 67/80 (33×); α=1.5: 0/80 vs 65/80. The flag rate
+  decays monotonically but never tells you what is left.
+- **Mode asymmetry as a precision cost.** At matched recall (≈78/80), recovery
+  through the edited (response) read costs **15/80** benign false positives at
+  α=1.1; the prompt-side read recovers at 78–80/80 with **1** FP. The edit not
+  only suppresses the derived-from read's flags, it leaves that read's recoverable
+  boundary much muddier.
+- **α=1.5 is the destruction line**: both reads lose ranking quality (AUC 0.855 /
+  0.835) and recovery precision collapses (17–18 FPs at ~80% recall).
+- **Pilot (n=10+10, same design; superseded, kept for the record)** read "0/10
+  flagged" flat across α=1.0–1.5 with recovery 9/10 through α=1.25 / 3/10 at
+  α=1.5 (AUC 0.69) and prompt-side recovery 10/10 everywhere. The flat-zero was
+  small-n masking: at n=80 the same guards show a clean monotone decay. The
+  pilot is why the n-bump happened — process note for the writeup.
 - Discipline: threshold fitted on tune only (margin-midpoint grid, max balanced
-  accuracy); every test number is out-of-sample. n=10+10 per split — see the
-  scale-up runbook below.
+  accuracy); every test number is out-of-sample.
 
 ## Scale-up runbook (4B / 8B — run on a ≥24 GB GPU, NOT offloaded)
 
@@ -618,7 +631,7 @@ not the model.
 ## Key-numbers cheat-sheet
 | Metric | Value |
 |---|---|
-| Visibility price (harmful) | +0.925 |
+| Visibility price (harmful) | +0.925 (n=40) · **+0.958** (n=120, slice2) |
 | Pristine flag rate (harmful) | 0/40 · margin −8.99 |
 | Ablated flag rate (harmful) | 37/40 · margin +5.93 |
 | Benign flag rate (both subjects) | 0/40 |
@@ -637,8 +650,8 @@ not the model.
 | Elicitation retest — ablated flags (resp_mod / user_only / swap / direct_q_raw) | 0/10 · **3/10** · 0/10 · 0/10 |
 | Elicitation retest — user_only margins (pristine → ablated) | +6.74 → −0.30 · AUC 1.0 |
 | Follow-up arms — ablated multiturn / system-role | **0/10 · 0/10** (pristine 10/10 · 8/10) |
-| Recalibration — label vs recovered (resp_mod, test) | α=1.1: **0/10 → 9/10** (2 FP) · α=1.5: **0/10 → 3/10** (AUC 0.69) |
-| Recalibration — prompt-side recovery (user_only) | **10/10 at every α** (0 FP ≤ 1.25) · AUC 1.0/1.0/1.0/0.96 |
+| Recalibration — label vs recovered (resp_mod, slice2 n=80) | α=1.1: **10/80 → 78/80** (15 FP) · α=1.5: **0/80 → 65/80** (AUC 0.855) |
+| Recalibration — prompt-side recovery (slice2) | α=1.1: **32/80 → 78/80 (1 FP)** · α≤1.25 FPs ≤ 4 |
 
 ---
 

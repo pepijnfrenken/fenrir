@@ -16,39 +16,41 @@ Open-weight "abliterated" guard checkpoints already circulate on model hubs
 generators is a well-studied attack family — yet no published work measures what
 an abliteration edit actually does to a *guard model's judgment*. We characterize
 it from scratch on Qwen3Guard-Gen-0.6B across an edit-strength ladder (α =
-1.0–1.5) and seven elicitation arms. The edit removes the guard's standard
-readout (harmful-pair flag rate 9/10 → 0/10) while the verdict-token margins
-still rank harmful above benign (AUC 0.955–0.96 up to α = 1.25) — a monotone
-recalibration, not information removal. The footprint is **mode-asymmetric**: the
-read the edit was derived from (response-moderation) degrades progressively
-(recoverable detection 9/10 → 9/10 → 9/10 → 3/10; AUC 0.960 → 0.955 → 0.895 →
-0.690), while the guard's *other* native read (prompt-moderation) retains a
-near-intact ordering at every α (recovered 10/10, AUC ≥ 0.96). The one crossing
-the edit leaves anywhere is context-fragile and instruction-proof. Because the
-ranking survives, detection is **recoverable without weight repair**: refitting a
-decision threshold on margins restores 9/10 harmful flags at α ≤ 1.25 — while the
-same "0/10" label at α = 1.5 hides an irrecoverably damaged detector. Flag-rate
-safety evaluations cannot distinguish recalibration from destruction; margin-
-level audits can.
+1.0–1.5) and seven elicitation arms, on 80+80 held-out pairs. The edit decays the
+guard's flag rate monotonically (28 → 10 → 2 → 0 of 80 harmful pairs on the read
+it was trained against) while the verdict-token margins still rank harmful above
+benign (AUC 0.982–0.955 across the calibration zone; 0.978 at the α=1.1 recipe) —
+a recalibration, not information removal. The label rate understates recoverable
+detection by up to ~30×: refitting a decision threshold on the ablated guard's
+own margins restores 78/80 detections at α = 1.1 where the label says 10/80. The
+footprint is **mode-asymmetric**, now as a precision cost: at matched recall
+(≈78/80), recovery through the edited (response) read costs 15 benign false
+positives; through the guard's untouched prompt-side read it costs **1**. The
+untouched read also keeps the cleaner ordering (AUC 0.999 vs 0.978 at α = 1.1)
+until both degrade at α = 1.5 (0.855 / 0.835) — the destruction line, where
+recovery precision collapses (17–18 FPs). Flag-rate safety evaluations cannot
+distinguish "recalibrated" from "gutted"; margin-level audits can, and the
+detector is largely recoverable without touching weights.
 
 ## Abstract (draft, ~190 words — for the submission)
 
 Safety guards are deployed as a last line of defense, and open-weight abliterated
-guard checkpoints are already downloadable — but the effect of weight-surgery on a
+guard checkpoints are already downloadable — but the effect of weight surgery on a
 guard's judgment has never been characterized. We abliterate Qwen3Guard-Gen-0.6B
 from scratch (layer-restricted projection of a harm direction, α ladder 1.0–1.5)
-and measure it with a gated instrument: held-out harmful/benign pairs, label parse
-plus verdict-token margin, seven elicitation arms, both native moderation modes.
-At every edit strength the guard's flag rate collapses to 0/10 — yet its margins
-keep ranking harmful above benign (AUC 0.955–0.985 up to α = 1.25), and
-re-thresholding those margins recovers 9/10 harmful flags out-of-sample: the edit
-is a monotone recalibration. The damage is mode-asymmetric: the response-
-moderation read the edit was derived from degrades with strength (AUC 0.960 →
-0.690; recovered detection 9/10 → 3/10), while the prompt-moderation read stays
-nearly intact (recovered 10/10 at every α). The surviving prompt-side crossing is
-context-fragile and instruction-proof. We argue flag-rate evaluations of tampered
-guards are blind, and give a recalibration audit that separates recoverable from
-destroyed detection.
+and measure it with a gated instrument on 80+80 held-out pairs: label parse plus
+verdict-token margin, seven elicitation arms, both native moderation modes. The
+flag rate decays monotonically with edit strength (28 → 10 → 2 → 0 of 80 on the
+response read; 54 → 32 → 5 → 0 on the prompt read) — yet the margins keep ranking
+harmful above benign (AUC 0.955–0.999 through α = 1.25), and re-thresholding
+those margins recovers 78/80 detections out-of-sample at α = 1.1: the edit is a
+recalibration, and the label read understates recoverable detection by up to
+~30×. The damage is mode-asymmetric, visible as precision: recovery costs 15
+benign false positives through the edited response read versus 1 through the
+untouched prompt read, at matched recall. At α = 1.5 both reads lose ordering
+(AUC 0.855 / 0.835) — the destruction line. We argue that flag-rate evaluations
+of tampered guards are blind, and give a recalibration audit that separates
+recoverable from damaged detection.
 
 ## Contributions
 
@@ -57,20 +59,23 @@ destroyed detection.
    positioning). 7 elicitation arms × 4 edit strengths × 2 native reads, all on
    held-out pairs, all with margin-level records.
 2. **Mode asymmetry**: the edit subtracts from the read its direction was derived
-   from, while the guard's other native read keeps a near-intact ordering all the
-   way to α = 1.5 (recovery 10/10 at every α) — evidence that the two reads'
-   decision structure is only partially shared.
-3. **The residual is fragile — suppression is robust**: the only surviving
-   crossing (bare prompt-moderation, 3/10 at margin +0.12) dies with one benign
-   context turn (0/10); a strictness system message re-elicits nothing on the
-   killed read (0/10) while pristine flags 8/10 under the same scaffold.
-4. **Recalibration audit & one-parameter recovery**: label 0/10 is identical
-   across α = 1.0–1.5 while recoverable detection spans 9/10 → 3/10 and AUC
-   0.960 → 0.690 — flag-rate audits cannot distinguish recalibration from
-   destruction; a threshold refit on margins (fit on tune, eval on test)
-   restores detection without touching weights. Instantiates the
-   ranking/calibration/threshold decomposition (cf. "Measuring the Wrong
-   Thing") in the weight-surgery setting.
+   from — visible both in ranking (AUC at α=1.1: 0.978 edited read vs 0.999
+   untouched read) and as a recovery precision cost (15 vs 1 benign false
+   positives at matched ≈78/80 recall). Both reads degrade only at α = 1.5
+   (0.855 / 0.835): the two reads' decision structure is only partially shared.
+3. **The residual is fragile — suppression is robust**: the prompt-side residual
+   (slice2: 32/80) collapses to 3/80 with one benign context turn (pristine
+   holds 80/80 under the same scaffold); a strictness system message re-elicits
+   nothing extra on the killed read (8/80 vs pristine 78/80).
+4. **Recalibration audit & one-parameter recovery**: the label read decays
+   28 → 10 → 2 → 0/80 (edited read) and 54 → 32 → 5 → 0 (untouched read) while
+   recoverable detection from the same margins holds at 78/78/67/65 and
+   80/78/76/61 of 80 — at α=1.25 the label shows 2/80 and 67/80 are recoverable
+   (33×). Flag-rate audits cannot distinguish recalibration from damage; a
+   threshold refit (fit on tune, eval on test) recovers detection without
+   touching weights, and its precision cost measures how far the edit went.
+   Instantiates the ranking/calibration/threshold decomposition (cf. "Measuring
+   the Wrong Thing") in the weight-surgery setting.
 5. **Defender-side cost measurements (secondary)**: the visibility price of
    abliteration to a content-guard (+0.925 flip; margins −8.99 → +5.93 on the
    subject's responses); dilution evasion is order-dominated (harmful span first
@@ -85,9 +90,10 @@ destroyed detection.
 |---|---|
 | Visibility price (+0.925) | `results/visibility_price_lfm_pair_n40x2*.json` |
 | Recipe replication (α ladder, gates) | `results/guard_gates_*.json`, `excise_repl_l17-18-19_a1*.json` |
-| Elicitation matrix (7 arms × 2 guards) | `results/elicitation_probe_{pristine,a1.1}*.json` |
+| Elicitation matrix (7 arms × 2 guards) | `results/elicitation_probe_{pristine,a1.1}*.json` (slice2 = n=80+80) |
 | Dilution + mitigations | `results/dilution_probe_*.json`, README "mitigation ladder" |
-| Recalibration ladder (5 guards × 2 arms) | `results/recalibration_*.json` |
+| Recalibration ladder (5 guards × 2 arms) | `results/recalibration_slice2-*.json` (+ pilot `recalibration_*.json`) |
+| Fresh-slice replication (visibility price, pairs, generations) | `*_n120x2_off40*` files + `data/guard_pairs_lfm-abl_slice2_n120.jsonl` |
 | Per-item raw records (margins, verdicts) | inside every JSON above + `items_*.jsonl` |
 
 ## Figures
@@ -137,7 +143,9 @@ checkpoints actually do" is the hook.
 
 ## Threats to validity (and the plan)
 
-1. **n = 10+10 held-out pairs** → scale to ≥100 pairs per split (builder +
+1. **n**: slice-2 (fresh 80+80) landed 2026-09-16 and corrected the pilot's
+   small-n flat-zero read into a monotone decay — flag reads are treacherous at
+   n=10. Scale to ≥100 per bank and replicate across further slices (builder +
    subject generations; runs on the same card). *Top priority.*
 2. **One guard family, one subject pair** → Granite Guardian (2B, has
    prompt+response modes) and/or Llama Guard 4 (8B) as second family.
