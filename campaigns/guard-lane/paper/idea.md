@@ -63,6 +63,11 @@ recoverable from damaged detection.
    untouched read) and as a recovery precision cost (15 vs 1 benign false
    positives at matched ≈78/80 recall). Both reads degrade only at α = 1.5
    (0.855 / 0.835): the two reads' decision structure is only partially shared.
+   **Flip test (the mechanism):** deriving the direction from the PROMPT read and
+   excising it at the same window leaves the response read nearly intact
+   (72/80 still flagged) while suppressing the prompt read (26/80); the
+   response-derived direction hits both. The footprint tracks the derivation
+   read, not the layer or magnitude.
 3. **The residual is fragile — suppression is robust**: the prompt-side residual
    (slice2: 32/80) collapses to 3/80 with one benign context turn (pristine
    holds 80/80 under the same scaffold); a strictness system message re-elicits
@@ -107,7 +112,8 @@ recoverable from damaged detection.
 - **F3 — Margin distributions.** Per-bank margin strips: pristine vs α=1.1
   (shifted, ordering intact) vs α=1.5 (interleaved = destruction).
 - **F4 — Elicitation matrix.** 7 arms × {pristine, ablated} flag-rate heatmap;
-  side panel: fragility (context) + instruction-proof (system-role) deltas.
+  side panel: fragility (context) + instruction-proof (system-role) deltas +
+  **read-specificity grid** (4 direction×window arms, both reads).
 - **F5 — Dilution & mitigation.** Flag rate by order/pile size; windowed/sentence
   reads with false-positive controls.
 - **(optional) F6 — Visibility price.** Subject-refusal flip as read by the guard.
@@ -167,9 +173,13 @@ checkpoints actually do" is the hook.
 
 ## Open questions this would ship with
 
-- Does the mode asymmetry track the *data* the edit was derived from, or the
-  architecture? (Test: derive the direction from prompt-side pairs; predict the
-  asymmetry flips.)
+- ~~Does the mode asymmetry track the *data* the edit was derived from, or the
+  architecture?~~ **ANSWERED (2026-09-16 flip test): the derivation read.** At
+  matched depth (L17–19) a prompt-derived edit suppresses the prompt read and
+  spares the response read; the response-derived edit hits both. Bonus mechanism
+  datapoint: at L24–26 both directions are inert at α=1.1 despite higher
+  separation — separation ≠ editability; and steering is read-agnostic at strong
+  α while the response read needs ~2× the push from the prompt-derived direction.
 - Is there a training-time defense that puts the two reads on one substrate
   (cf. the fine-tuning-collapse mitigation literature)?
 - Can a "tamper audit" (margins + recovery) be run black-box, i.e. from queries

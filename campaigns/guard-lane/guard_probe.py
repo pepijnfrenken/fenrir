@@ -278,9 +278,11 @@ def cmd_steer(args) -> None:
                          "unparsed": unparsed, "sample_raws": raws})
         log(f"  (b) alpha={alpha/scale:+.2f}x·scale: flagged {flags}/{len(hpairs)} (unparsed {unparsed})")
 
-    out = {"layer": layer, "scale": scale, "decision_curve": curve, "generation_curve": gen_rows}
-    (RESULTS / f"steer_{args.tag}_l{layer}.json").write_text(json.dumps(out, indent=2))
-    log(f"wrote {RESULTS / f'steer_{args.tag}_l{layer}.json'}")
+    out = {"layer": layer, "read": args.read, "scale": scale, "decision_curve": curve,
+           "generation_curve": gen_rows}
+    # read in the name: same tag+layer steered DOWN different reads must not collide
+    (RESULTS / f"steer_{args.tag}_{args.read}_l{layer}.json").write_text(json.dumps(out, indent=2))
+    log(f"wrote {RESULTS / f'steer_{args.tag}_{args.read}_l{layer}.json'}")
 
 
 def main() -> None:

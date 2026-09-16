@@ -16,7 +16,7 @@ landscape_scan: >
   Otilde/Qwen3Guard-Gen-4B-Heretic (MLX). Awareness only: for honest framing
   of negative claims and as a later verification target; NEVER redirects this
   campaign. From-scratch DIY remains primary.
-status: PARTIAL POSITIVE — Steps 0–3 done: recipe replicated (L17–19 o_proj+down_proj, α=1.1 → 0/10 flagged, benign 10/10, AUC 0.985; α=1.5 FAILS the discrimination gate); lm_head variant NEGATIVE (amplifies); Step 3 coverage edges — language (BG) edge real-but-thin (7–9/10 vs 10/10 EN; one robust miss across 2 translators), style edge NEGATIVE; dilution probe: ORDER beats pile size (benign prompt + 250-char span FIRST + benign flood = 0/10 flagged); mitigation: WINDOWED READ kills flooding (7→10/10, zero FPs), residual small-span case partially recovered (0→4/10 at 350-char windows); mitigation ladder EXTENDED (2026-09-16): sentence-level reads close the flooding family (all 3 variants → 10/10, zero FPs) and reduce the residual to EXACTLY the bare-span readout (≡ identical margins; ≤4/10, prompt-tier-gated: span reads 9/10 harmful / 4–5 neutral / 2 benign prompt); prompt-side hardening is diagnostic only (quantifies the prompt share, 30–50%); elicitation retest (2026-09-16): the flag is still ELICIT-ABLE — response-moderation fully suppressed (0/10) but prompt-moderation only partially (3/10 Unsafe, margins sitting at the boundary), ranking survives every informative arm (AUC ≥ 0.915); follow-up arms: the prompt-side residual is context-FRAGILE (3/10 → 0/10 with one benign context turn) and response-side suppression is instruction-PROOF (a strict system message re-elicits nothing) — seven arms in, the flag is barely-reachable and every re-elicitation attempt fails; recalibration probe (2026-09-16, primary slice2 n=80+80): the abliterated guard's detection is RECOVERABLE — the label read decays monotonically (resp_mod 28→10→2→0/80; user_only 54→32→5→0/80 across α=1.0–1.5) while threshold-refit recovery from the same margins holds at 78/78/67/65 and 80/78/76/61 of 80 (FPs 3/15/6/17 and 0/1/4/18) — recovery through the edited read costs 15× the prompt read's false positives at α=1.1; α=1.5 is the destruction line (AUC 0.855/0.835); pilot n=10+10 read flat 0/10 — superseded, the flag rate understates recoverable detection by up to ~30×.
+status: PARTIAL POSITIVE — Steps 0–3 done: recipe replicated (L17–19 o_proj+down_proj, α=1.1 → 0/10 flagged, benign 10/10, AUC 0.985; α=1.5 FAILS the discrimination gate); lm_head variant NEGATIVE (amplifies); Step 3 coverage edges — language (BG) edge real-but-thin (7–9/10 vs 10/10 EN; one robust miss across 2 translators), style edge NEGATIVE; dilution probe: ORDER beats pile size (benign prompt + 250-char span FIRST + benign flood = 0/10 flagged); mitigation: WINDOWED READ kills flooding (7→10/10, zero FPs), residual small-span case partially recovered (0→4/10 at 350-char windows); mitigation ladder EXTENDED (2026-09-16): sentence-level reads close the flooding family (all 3 variants → 10/10, zero FPs) and reduce the residual to EXACTLY the bare-span readout (≡ identical margins; ≤4/10, prompt-tier-gated: span reads 9/10 harmful / 4–5 neutral / 2 benign prompt); prompt-side hardening is diagnostic only (quantifies the prompt share, 30–50%); elicitation retest (2026-09-16): the flag is still ELICIT-ABLE — response-moderation fully suppressed (0/10) but prompt-moderation only partially (3/10 Unsafe, margins sitting at the boundary), ranking survives every informative arm (AUC ≥ 0.915); follow-up arms: the prompt-side residual is context-FRAGILE (3/10 → 0/10 with one benign context turn) and response-side suppression is instruction-PROOF (a strict system message re-elicits nothing) — seven arms in, the flag is barely-reachable and every re-elicitation attempt fails; recalibration probe (2026-09-16, primary slice2 n=80+80): the abliterated guard's detection is RECOVERABLE — the label read decays monotonically (resp_mod 28→10→2→0/80; user_only 54→32→5→0/80 across α=1.0–1.5) while threshold-refit recovery from the same margins holds at 78/78/67/65 and 80/78/76/61 of 80 (FPs 3/15/6/17 and 0/1/4/18) — recovery through the edited read costs 15× the prompt read's false positives at α=1.1; α=1.5 is the destruction line (AUC 0.855/0.835); read-specificity probe (2026-09-16): the edit's footprint tracks its DERIVATION READ at L17–19 — a prompt-derived direction suppresses the prompt read (80→26/80) and leaves the response read nearly intact (72/80), while the response-derived direction hits both; at L24–26 both directions are inert despite higher separation (separation ≠ editability); steering is read-agnostic at strong α but the response read needs ~2× the push from the prompt-derived direction.
 hardware: desktop WSL2 — RTX 3060 Ti 8 GB (subjects 1.2B pair + guard 0.6B, bf16)
 cost: ~0 (local)
 baseline_sanity: >
@@ -100,6 +100,12 @@ key_numeric_results:
     # α = 1.0 / 1.1 / 1.25 / 1.5; pristine: resp_mod 78/80·0FP, user_only 80/80·0FP
   recalibration_pilot_n10:  # superseded (small-n flat-zero); kept for the record
     resp_mod:  {label: [0, 0, 0, 0], recovered: [9, 9, 9, 3], auc: [0.96, 0.955, 0.895, 0.69]}
+  read_specificity:  # slice2 n=80 labels → recovered(FPs); direction × window
+    resp_derived_l17_19: {resp_mod: "10→78(15)", user_only: "32→78(1)"}      # existing recipe
+    prompt_derived_l17_19: {resp_mod: "72→79(5)", user_only: "26→80(1)"}     # flip test: selective
+    prompt_derived_l24_26: {resp_mod: "78→79(1)", user_only: "80→80(0)"}     # inert
+    resp_derived_l24_26: {resp_mod: "78→79(6)", user_only: "80→80(0)"}       # inert
+    direction_cosine_l17_19: [0.939, 0.916, 0.888]  # prompt vs response directions — selectivity is not a magnitude artifact
 bugs_found:
   - items_not_persisted   # first n=40 run saved aggregates only; per-item guard records now written (items_*.jsonl). Re-score on --reuse-gen reproduced identical numbers (greedy ⇒ deterministic).
   - benign_split_pairing  # guard-pair builder initially dropped benign pairs (split partitions the harmful list; benign pairs inherit by index). Caught pre-run, fixed, verified 80 pairs written.
@@ -566,6 +572,53 @@ original n=10+10 pilot is kept below as the small-n cautionary.
 - Discipline: threshold fitted on tune only (margin-midpoint grid, max balanced
   accuracy); every test number is out-of-sample.
 
+### Read-specificity probe — the edit's footprint tracks its derivation read (2026-09-16)
+
+The α=1.1 recipe (response-derived direction, L17–19) suppresses the response read
+hard (label 10/80) and the prompt read partially (32/80). Is the footprint a
+property of the **read the direction was derived from**, or of the layer window?
+Flip test: derive the direction from the PROMPT read
+(`guard_probe.py --read user_only` → `directions_guard_prompt.npz`; steer gate
+PASSED — 10/10 harmful flips at L25, emitted verdicts flip), excise at the same
+α, evaluate both reads on slice-2.
+
+2×2 grid (labels on slice-2 test n=80 → recovered, FPs in parentheses):
+
+| direction × window | response read | prompt read |
+|---|---|---|
+| response-derived @17–19 (existing recipe) | **10/80** → 78/80 (15) · AUC 0.978 | **32/80** → 78/80 (1) · AUC 0.999 |
+| prompt-derived @17–19 | 72/80 → 79/80 (5) · AUC 0.987 | **26/80** → 80/80 (1) · AUC 1.0 |
+| prompt-derived @24–26 | 78/80 → 79/80 (1) · AUC 0.988 | 80/80 → 80/80 (0) · AUC 1.0 |
+| response-derived @24–26 | 78/80 → 79/80 (6) · AUC 0.991 | 80/80 → 80/80 (0) · AUC 1.0 |
+| *pristine reference* | 78/80 → 78/80 (1) · AUC 0.989 | 80/80 → 80/80 (0) · AUC 1.0 |
+
+- **The bite lives at mid-stack 17–19.** At 24–26 BOTH directions are inert at
+  α=1.1 (labels ≈ pristine) even though separation is higher there — the distill
+  profile's separation ranking does not predict editability; the steer + excise
+  tests do. The recipe's historical window choice is vindicated.
+- **At 17–19 the footprint tracks the derivation read, with a one-way bleed.**
+  Response-derived: kills its own read (−68) AND the prompt read (−48).
+  Prompt-derived: kills the prompt read (−54) and leaves the response read nearly
+  intact (−6; still 72/80 flagged).
+- **Not a magnitude or depth artifact**: the two directions are 0.89–0.94
+  cosine-aligned at 17–19 with near-identical layer separation profiles; the
+  selectivity tracks the contrast the direction was computed on.
+- **Cross-steer matrix** (steer direction D at layer L, read read R —
+  decision-position curve + generation): every cell flips at strong α, i.e.
+  STEERING alone is read-agnostic — but the push needed differs: the prompt-
+  derived direction flips its own read at −148 and needs ≈−296 for the response
+  read (5/10 at −148); the response-derived direction flips the prompt read at
+  −51 (L18) and −152 (L25). Read-selective coupling shows at the weight level
+  (excise) and in steering thresholds, not in steer flips alone.
+- **Ranking survives every variant** (recovered 78–80/80; AUC 0.978–0.999).
+  Recovery FP cost tracks how hard the read was hit (response read under the
+  response-derived edit: 15 FPs; prompt read: 1).
+- Artifacts: `elicitation_probe_{pd17-19,pd24-26,rd24-26}-a1.1.json`,
+  `recalibration_slice2-{pd17-19,pd24-26,rd24-26}-a1.1.json`,
+  `excise_guard_prompt_l{17-18-19,24-25-26}_a1.1.json`, `steer_*_l*.json`,
+  `directions_guard_prompt{,_profile}.json/.npz`; models
+  `qwen3guard-0.6b-abl-{pd17-19,pd24-26,rd24-26}-a1.1` on the desktop.
+
 ## Scale-up runbook (4B / 8B — run on a ≥24 GB GPU, NOT offloaded)
 
 The 4B cannot run on the 3060 Ti: bf16 weights (8.3 GB) exceed the 8 GB card and
@@ -652,6 +705,8 @@ not the model.
 | Follow-up arms — ablated multiturn / system-role | **0/10 · 0/10** (pristine 10/10 · 8/10) |
 | Recalibration — label vs recovered (resp_mod, slice2 n=80) | α=1.1: **10/80 → 78/80** (15 FP) · α=1.5: **0/80 → 65/80** (AUC 0.855) |
 | Recalibration — prompt-side recovery (slice2) | α=1.1: **32/80 → 78/80 (1 FP)** · α≤1.25 FPs ≤ 4 |
+| Read-specificity — prompt-derived edit (slice2) | resp read **untouched** 72/80 · prompt read 26/80 (0→78 recovered) |
+| Read-specificity — top strip 24–26 | both directions inert at α=1.1 (labels ≈ pristine) |
 
 ---
 
