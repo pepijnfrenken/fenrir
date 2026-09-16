@@ -58,16 +58,21 @@ recoverable from damaged detection.
    generative guard** (as far as our bounded literature scan found — see
    positioning). 7 elicitation arms × 4 edit strengths × 2 native reads, all on
    held-out pairs, all with margin-level records.
-2. **Mode asymmetry**: the edit subtracts from the read its direction was derived
-   from — visible both in ranking (AUC at α=1.1: 0.978 edited read vs 0.999
-   untouched read) and as a recovery precision cost (15 vs 1 benign false
-   positives at matched ≈78/80 recall). Both reads degrade only at α = 1.5
-   (0.855 / 0.835): the two reads' decision structure is only partially shared.
-   **Flip test (the mechanism):** deriving the direction from the PROMPT read and
-   excising it at the same window leaves the response read nearly intact
-   (72/80 still flagged) while suppressing the prompt read (26/80); the
-   response-derived direction hits both. The footprint tracks the derivation
-   read, not the layer or magnitude.
+2. **Mode asymmetry — partially cross-family.** The edit subtracts from the read
+   its direction was derived from (AUC at α=1.1: 0.978 edited read vs 0.999
+   untouched); both reads degrade only at α=1.5 (0.855 / 0.835). **Flip test
+   (qwen):** a prompt-derived direction excised at the same window leaves the
+   response read nearly intact (72/80) while suppressing the prompt read (26/80);
+   the response-derived direction hits both (10/80 · 32/80). **Cross-family
+   (granite-guardian-3.1-2b, compared at matched own-read damage):** the
+   response-derived edit's own-read selectivity **replicates** (6/80 own vs
+   26/80 other at α=0.75); the prompt-derived edit does **not** (20/80 own vs
+   8/80 other — anti-selective across the whole α ladder). Direction geometry is
+   similar in both families (cos 0.87–0.94) — the footprint is not explained by
+   alignment; the candidate explanation is scaffold overlap (granite's response
+   scaffold embeds the user message). Across three independent manipulations the
+   **response read is the fragile side** (all-modules ladder; granite
+   prompt-derived edit; top-strip edits in both families).
 3. **The residual is fragile — suppression is robust**: the prompt-side residual
    (slice2: 32/80) collapses to 3/80 with one benign context turn (pristine
    holds 80/80 under the same scaffold); a strictness system message re-elicits
@@ -80,7 +85,14 @@ recoverable from damaged detection.
    threshold refit (fit on tune, eval on test) recovers detection without
    touching weights, and its precision cost measures how far the edit went.
    Instantiates the ranking/calibration/threshold decomposition (cf. "Measuring
-   the Wrong Thing") in the weight-surgery setting.
+   the Wrong Thing") in the weight-surgery setting. **Threshold-free operating
+   points** (TPR@5%FPR with 95% cluster-bootstrap CIs; `stats_ci.py`: 135 cells,
+   158 matched-pair deltas): pristine 98.8 [96.2, 100] (resp) / 100 (prompt);
+   α=1.1 96.2 [85.0, 100] / 100; α=1.25 82.5 [62.5, 92.5] / 95.0 [63.7, 100];
+   α=1.5 28.7 [8.7, 51.2] / 45.0 [7.5, 60.0]. The α=1.0–1.1 collapse is a
+   threshold shift, not information loss (AUC holds at 0.978–0.999; CIs overlap
+   pristine); ranking damage starts at α≥1.25. Recovery replicates on the second
+   family (granite rd/pd 0/80 → 76–80/80 at ≤5% FPR, AUC ≥0.983).
 5. **Defender-side cost measurements (secondary)**: the visibility price of
    abliteration to a content-guard (+0.925 flip; margins −8.99 → +5.93 on the
    subject's responses); dilution evasion is order-dominated (harmful span first
@@ -100,6 +112,8 @@ recoverable from damaged detection.
 | Recalibration ladder (5 guards × 2 arms) | `results/recalibration_slice2-*.json` (+ pilot `recalibration_*.json`) |
 | Fresh-slice replication (visibility price, pairs, generations) | `*_n120x2_off40*` files + `data/guard_pairs_lfm-abl_slice2_n120.jsonl` |
 | Per-item raw records (margins, verdicts) | inside every JSON above + `items_*.jsonl` |
+| Second family (granite-guardian-3.1-2b): acceptance, ladder, 2×2, recovery | `results/elicitation_probe_granite-*.json`, `results/recalibration_slice2-granite-*.json`, `results/directions_granite-{resp,prompt}.npz`, `models/granite-guardian-3.1-2b.yaml` |
+| Bootstrap CIs + fixed-FPR operating points | `results/stats_ci.json` + `stats_ci.py` |
 
 ## Figures
 

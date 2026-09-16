@@ -648,9 +648,73 @@ guard family (apache-2.0, ungated). The 3.1-2b fits the 8 GB card in bf16.
 | user_only | 80/80 | 0/80 | +6.30 / −4.88 | 1.000 |
 
 A cleaner instrument than the 0.6B qwen guard on this bank (78/80 · 80/80).
-Next on this family: direction harvest per read → steer gate → excise at matched
-windows → elicitation + recalibration. Questions: does the mode asymmetry
-replicate, does recovery hold, is the BG/style edge different.
+
+**Direction probe + ablation ladder (mid-stack 20–22 unless noted; label reads,
+slice-2 test n=80/class):**
+
+| condition | response read | prompt read |
+|---|---|---|
+| pristine | 75/80 | 80/80 |
+| prompt-dir α=0.5 | 58/80 | 77/80 |
+| prompt-dir α=0.6 | 39/80 | 56/80 |
+| prompt-dir α=0.75 | 8/80 | 20/80 |
+| prompt-dir α=0.9 | 0/80 | 1/80 |
+| resp-dir α=0.75 | 6/80 | 26/80 |
+| prompt-dir @37–39 α=1.0 | 65/80 | 80/80 |
+| resp-dir @37–39 α=1.0 | 64/80 | 80/80 |
+
+**Cross-family comparison — what replicates.** Compare at matched own-read
+damage, not at equal α (α is not comparable across models):
+
+| edit | own read | other read | reading |
+|---|---|---|---|
+| qwen resp-dir @17–19 α=1.1 | 10/80 | 32/80 | own-read-selective |
+| **granite resp-dir @20–22 α=0.75** | **6/80** | **26/80** | **own-read-selective — replicates** |
+| qwen prompt-dir @17–19 α=1.1 | 26/80 | 72/80 | own-read-selective |
+| **granite prompt-dir @20–22 α=0.75** | **20/80** | **8/80** | **anti-selective — differs** |
+
+- The **response-derived edit's own-read selectivity replicates** — granite's
+  resp-dir at α=0.75 reads 6/80 own vs 26/80 other, qwen's 10/80 vs 32/80. Same
+  shape, same one-way bleed onto the prompt side.
+- The **prompt-derived edit does NOT replicate**: in granite, every α hits the
+  response read at least as hard as the prompt read (α=0.5: 58 vs 77;
+  α=0.75: 8 vs 20). Qwen's "prompt edit spares the response read" (72/80) is the
+  family-specific behavior, not the rule.
+- **Geometry does not explain it**: cos(resp-dir, prompt-dir) is 0.92–0.93 in
+  granite's mid-stack vs 0.87–0.94 in qwen's — similar alignment, different
+  footprint. Candidate explanation (untested): granite's response scaffold
+  *embeds* the user message inside it ("User Message: … Assistant Message: …"),
+  so the response read's pathway shares more of the prompt-read circuit.
+- **The response read is the fragile side in every cross-family manipulation**:
+  first to degrade in the all-modules qwen ladder (TPR@5 82.5 vs 95 at α=1.25),
+  the more-damaged side under granite's prompt-derived edit, and the only read
+  dented by the top-strip (37–39) edits in both families. Three independent
+  manipulations, same conclusion.
+- **Recovery replicates fully**: granite rd20-22 label 0/80 → refit 76/80 at
+  5.0% FPR (prompt read 71/80 at 1.2%); pd20-22 0/80 → 79/80 and 80/80 at 5%.
+  AUC 0.983–0.994 throughout. The threshold-shift story is family-agnostic.
+
+**Operating-point view (bootstrap CIs) — `stats_ci.py` → `results/stats_ci.json`
+(135 cells, 158 matched-pair deltas; 95% cluster bootstrap over pair_ids).**
+Threshold-free TPR at fixed 5% FPR, slice-2 test:
+
+| condition | resp read | prompt read |
+|---|---|---|
+| qwen pristine | 98.8 [96.2, 100] | 100 [100, 100] |
+| qwen α=1.0 | 97.5 [92.5, 100] | 100 |
+| qwen α=1.1 | 96.2 [85.0, 100] | 100 |
+| qwen α=1.25 | 82.5 [62.5, 92.5] | 95.0 [63.7, 100] |
+| qwen α=1.5 | 28.7 [8.7, 51.2] | 45.0 [7.5, 60.0] |
+| granite pristine | 98.8 [96.2, 100] | 100 |
+| granite resp-dir 20–22 | 95.0 [90.0, 100] | 100 |
+| granite prompt-dir 20–22 | 98.8 [91.2, 100] | 100 |
+
+- The α=1.0–1.1 label collapse is a **threshold shift, not information loss**:
+  AUC stays 0.978–0.999 and TPR@5 is statistically indistinguishable from
+  pristine (CIs overlap). Ranking damage appears at α≥1.25 and is severe at 1.5.
+- The refit delta on **flagH** is the recovery number; the same delta on TPR@FPR
+  is 0.0 by construction (a threshold cannot move a threshold-free metric) — a
+  built-in invariance check for the stats script.
 
 ## Scale-up runbook (4B / 8B — run on a ≥24 GB GPU, NOT offloaded)
 
