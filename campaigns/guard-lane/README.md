@@ -16,7 +16,7 @@ landscape_scan: >
   Otilde/Qwen3Guard-Gen-4B-Heretic (MLX). Awareness only: for honest framing
   of negative claims and as a later verification target; NEVER redirects this
   campaign. From-scratch DIY remains primary.
-status: PARTIAL POSITIVE — Steps 0–3 done: recipe replicated (L17–19 o_proj+down_proj, α=1.1 → 0/10 flagged, benign 10/10, AUC 0.985; α=1.5 FAILS the discrimination gate); lm_head variant NEGATIVE (amplifies); Step 3 coverage edges — language (BG) edge real-but-thin (7–9/10 vs 10/10 EN; one robust miss across 2 translators), style edge NEGATIVE; dilution probe: ORDER beats pile size (benign prompt + 250-char span FIRST + benign flood = 0/10 flagged); mitigation: WINDOWED READ kills flooding (7→10/10, zero FPs), residual small-span case partially recovered (0→4/10 at 350-char windows); elicitation retest (2026-09-16): the flag is still ELICIT-ABLE — response-moderation fully suppressed (0/10) but prompt-moderation only partially (3/10 Unsafe, margins sitting at the boundary), ranking survives every informative arm (AUC ≥ 0.95).
+status: PARTIAL POSITIVE — Steps 0–3 done: recipe replicated (L17–19 o_proj+down_proj, α=1.1 → 0/10 flagged, benign 10/10, AUC 0.985; α=1.5 FAILS the discrimination gate); lm_head variant NEGATIVE (amplifies); Step 3 coverage edges — language (BG) edge real-but-thin (7–9/10 vs 10/10 EN; one robust miss across 2 translators), style edge NEGATIVE; dilution probe: ORDER beats pile size (benign prompt + 250-char span FIRST + benign flood = 0/10 flagged); mitigation: WINDOWED READ kills flooding (7→10/10, zero FPs), residual small-span case partially recovered (0→4/10 at 350-char windows); mitigation ladder EXTENDED (2026-09-16): sentence-level reads close the flooding family (all 3 variants → 10/10, zero FPs) and reduce the residual to EXACTLY the bare-span readout (≡ identical margins; ≤4/10, prompt-tier-gated: span reads 9/10 harmful / 4–5 neutral / 2 benign prompt); prompt-side hardening is diagnostic only (quantifies the prompt share, 30–50%); elicitation retest (2026-09-16): the flag is still ELICIT-ABLE — response-moderation fully suppressed (0/10) but prompt-moderation only partially (3/10 Unsafe, margins sitting at the boundary), ranking survives every informative arm (AUC ≥ 0.95).
 hardware: desktop WSL2 — RTX 3060 Ti 8 GB (subjects 1.2B pair + guard 0.6B, bf16)
 cost: ~0 (local)
 baseline_sanity: >
@@ -80,6 +80,10 @@ key_numeric_results:
   dilution_mitigation_flooding: 10/10         # windowed read (900/600 or 350/250) vs 7/10 full read
   dilution_mitigation_residual: 4/10          # benign prompt + span first: 0/10 full -> 1/10 (900) -> 4/10 (350)
   dilution_mitigation_false_positives: 0/5    # benign controls clean under windowed reads
+  dilution_sentence_flooding: 1.0             # payload-last/first + span-last: 10/10 under sentence reads
+  dilution_sentence_residual: 0.2             # bp_smidge_start ≡ bare-span read (identical margins)
+  dilution_span_prompt_tiers: "9/10 harmful, 4-5/10 neutral, 2/10 benign prompt"
+  dilution_respo_diagnostic: "prompt-share removal: base_hp 10->5, end_k7 7->3 (not a recovery path)"
   elicitation_ablated_resp_mod_flags: 0.0     # control arm (native response-moderation)
   elicitation_ablated_user_only_flags: 0.3    # prompt-moderation — 3/10, survivors at margin +0.12
   elicitation_ablated_swap_scaffold_flags: 0.0
@@ -90,7 +94,7 @@ bugs_found:
   - items_not_persisted   # first n=40 run saved aggregates only; per-item guard records now written (items_*.jsonl). Re-score on --reuse-gen reproduced identical numbers (greedy ⇒ deterministic).
   - benign_split_pairing  # guard-pair builder initially dropped benign pairs (split partitions the harmful list; benign pairs inherit by index). Caught pre-run, fixed, verified 80 pairs written.
   - steer_hook_signatures # transformers 5.x layer hooks can receive a bare tensor (not a tuple) and the steer loop initially mixed global/local tune indices; both fixed before any conclusion was drawn.
-recommended_next: [prompt_side_hardening (modes built 2026-09-16, runs in flight), sentence_level_reads (ditto), bg_gold_translations, guard_scale_4b_8b (4B downloaded to desktop 2026-09-16)]
+recommended_next: [bg_gold_translations, guard_scale_4b_8b (4B cached on desktop 2026-09-16; pristine acceptance + probe starting)]
 ---
 
 # Campaign: Guard lane — abliterate the judge (Qwen3Guard-Gen-0.6B)
@@ -385,6 +389,55 @@ only 6–7/10, i.e. ~30% of the flag strength was always carried by the prompt,
 and the 250-char span is truncated content. Closing the residual needs
 prompt-side hardening or sentence-level reads, not a bigger window.
 
+**Mitigation ladder extended — sentence-level + prompt-share reads (2026-09-16).**
+Two new read modes (`--mode sentence`, `--mode resp_only[_sentences]`) plus
+bare-span diagnostic cells (`span_hp` / `span_bp`), 10 pairs per cell, benign
+controls under every mode:
+
+| condition | full | win900 | win350 | sentence | resp_only | resp+sent |
+|---|---|---|---|---|---|---|
+| `base_hp` (control) | 10/10 +5.78 | 10/10 +5.78 | — | 10/10 +6.81 | 5/10 +0.86 | — |
+| `base_bp` (prompt share off) | 7/10 +1.93 | — | 6/10 +2.05 | 3/10 +0.68 | 5/10 +0.86 | — |
+| `end_k7` (payload last) | 7/10 +2.05 | 10/10 +5.59 | 10/10 +6.03 | **10/10 +6.86** | 3/10 −1.24 | — |
+| `start_k7` (payload first) | 4/10 −0.57 | 9/10 +3.89 | — | **10/10 +6.86** | 2/10 −3.79 | 6/10 +1.32 |
+| `smidge_k7` (span last) | 7/10 +1.51 | 10/10 +3.94 | — | **10/10 +6.17** | 3/10 −2.05 | — |
+| `bp_start_k7` | 1/10 −3.81 | 5/10 +0.15 | 6/10 +1.98 | 3/10 +0.68 | 2/10 −3.79 | — |
+| `bp_smidge_start` (residual) | 0/10 −4.80 | 1/10 −2.40 | 4/10 −1.43 | 2/10 −1.01 | 0/10 −4.85 | 4/10 −0.88 |
+| `span_hp` (bare span, harmful prompt) | — | — | — | **9/10 +5.51** | 5/10 −0.72 | — |
+| `span_bp` (bare span, benign prompt) | — | — | — | 2/10 −1.26 | 5/10 −0.72 | 4/10 −1.51 |
+| benign controls (FPs) | 0/5 | 0/5 | 0/5 | 0/5 | 0/5 | 0/5 |
+
+Reading:
+
+- **Sentence-level reads close the flooding family.** All three flooding
+  variants go to 10/10 (payload-last 7→10, payload-first 4→10, span-last 7→10)
+  with zero false positives — the strongest result of any mode, and pure
+  reading logic (no retraining, no prompt changes).
+- **The mitigation reduces the text to its strongest unit — exactly.** On the
+  residual attack, per-pair sentence margins are IDENTICAL to reading the bare
+  250-char span (both modes); `bp_smidge_start` and `span_bp` carry the same two
+  flagged pairs at the same margins. No further reading trick can recover more,
+  because the read now IS the span's own readout.
+- **Prompt tier gates the residual.** The same bare span reads 9/10 under a
+  harmful prompt, 4–5/10 under a neutral one, 2/10 under a benign one. The
+  attacker discards the prompt share by construction; the residual (≤4/10,
+  margins at/below the line) is exactly that discarded share.
+- **Prompt-side hardening is diagnostic, not a fix.** Neutral-prompt reads
+  remove the prompt's contribution and lower flags (`base_hp` 10→5, `end_k7`
+  7→3): useful to quantify the prompt share, useless as a recovery path.
+- **Granularity trades localisation for context.** Finer reads lose
+  distributed-harm signal (`base_bp` 7→3 sentence; `bp_start_k7` win350 6 vs
+  sentence 3). The hardened-reader recommendation is therefore a **union**: max
+  verdict across granularities (full ∪ windows ∪ sentences), not finer reads
+  replacing the full read.
+- Determinism check: cells reading identical content under different labels
+  give identical margins (`span_hp` ≡ `span_bp` under `resp_only`;
+  `bp_smidge_start` ≡ `span_bp` under `resp_only_sentences`).
+
+Artifacts: `results/dilution_probe_repl-{sent,respo,resposent}.json` +
+`mitigation_ladder.py` (one-table view across every mode). Runtime ~12 min for
+the three new passes.
+
 ### Elicitation retest — the flag-vs-judgment caveat, tested (2026-09-16)
 
 The Step-2 caveat's operational test: run BOTH guards (pristine, α=1.1) through
@@ -477,6 +530,8 @@ with raw verdict texts, margins, decision steps. Runtime ~30 s/guard (3060 Ti).
 | Step 3 style edge (dialogue) | NEGATIVE — 9/10 flagged, margin +5.91 |
 | Dilution probe (best evade) | 0/10 flagged · 250-char span FIRST + benign flood · margin −4.80 |
 | Dilution mitigation (windowed read) | flooding 7→10/10 · residual 0→1→4/10 (900→350) · FPs 0/5 |
+| Mitigation ladder — sentence reads | flooding 3/3 → 10/10 · residual ≡ bare-span read (2/10) · FPs 0/5 |
+| Prompt tier on the bare span (harmful / neutral / benign) | 9/10 · 4–5/10 · 2/10 |
 | Elicitation retest — ablated flags (resp_mod / user_only / swap / direct_q_raw) | 0/10 · **3/10** · 0/10 · 0/10 |
 | Elicitation retest — user_only margins (pristine → ablated) | +6.74 → −0.30 · AUC 1.0 |
 
