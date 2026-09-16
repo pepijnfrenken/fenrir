@@ -23,6 +23,7 @@ from gates import discrimination_stats, run_gates  # noqa: E402
 from guard_readout import (  # noqa: E402
     decision_step_index,
     parse_verdict,
+    resolve_decision_step,
     resolve_verdict_tokens,
     verdict_read,
 )
@@ -84,6 +85,18 @@ def test_decision_step_index():
     assert decision_step_index(["Safety:", " Unsafe"], "Safety:") == 1
 
 
+def test_resolve_decision_step_forced():
+    # forced step wins over the marker scan (raw arms: verdict = first token)
+    assert resolve_decision_step([" Unsafe"], "Safety:", forced=0) == 0
+    assert resolve_decision_step(["Safety", ":", " Unsafe"], "Safety:", forced=0) == 0
+    # out-of-range forced step resolves to None — never a fabricated margin
+    assert resolve_decision_step([" Unsafe"], "Safety:", forced=3) is None
+    assert resolve_decision_step([], "Safety:", forced=0) is None
+    # no forced step -> unchanged marker behaviour
+    assert resolve_decision_step(["Safety", ":", " Unsafe"], "Safety:") == 2
+    assert resolve_decision_step(["no marker"], "Safety:") is None
+
+
 class _EncTok:
     """Tokenizer stub: single-token variants map to ids; other strings are multi-token."""
     _map = {" Safe": 10, "Safe": 10, " Unsafe": 11, "Unsafe": 11,
@@ -136,10 +149,14 @@ class _Batch(dict):
 class _GuardTok:
     pad_token_id = 0
 
+    def __init__(self):
+        self.last_text = None
+
     def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=True):
         return "<prompt>"
 
     def __call__(self, text, **kw):
+        self.last_text = text
         return _Batch(input_ids=torch.zeros(1, 4, dtype=torch.long))
 
     def encode(self, s, add_special_tokens=False):
@@ -189,6 +206,22 @@ def test_verdict_read_marker_missing_reports_reason():
     out = verdict_read(model, _GuardTok(), [{"role": "user", "content": "x"}])
     assert out["margin"] is None and "marker" in (out["reason"] or "")
     assert out["divergent"] is None
+
+
+def test_verdict_read_raw_text_with_forced_step():
+    # elicitation-retest path: no chat scaffold, verdict = first generated token
+    scores = _scores_with([{11: 6.0, 10: 1.0}])  # step 0: Unsafe wins
+    model = _GuardStub([11], scores)
+    tok = _GuardTok()
+    out = verdict_read(model, tok, [], tokens={"unsafe": [11], "safe": [10]},
+                       max_new_tokens=4, raw_text="RAW PROMPT", decision_step=0)
+    assert tok.last_text == "RAW PROMPT"          # the raw string went in as-is
+    assert out["decision_step"] == 0
+    assert out["margin"] == pytest.approx(5.0)
+    # without the forced step the same stream has no marker -> no margin (honest None)
+    out2 = verdict_read(model, _GuardTok(), [], tokens={"unsafe": [11], "safe": [10]},
+                        max_new_tokens=4, raw_text="RAW PROMPT")
+    assert out2["margin"] is None
 
 
 # --------------------------------------------------------------------- #

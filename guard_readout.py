@@ -212,6 +212,22 @@ def decision_step_index(decoded_tokens: Sequence[str], marker: str | None) -> in
     return None
 
 
+def resolve_decision_step(decoded_tokens: Sequence[str], marker: str | None,
+                          forced: int | None = None) -> int | None:
+    """Decision-step resolution with an explicit override.
+
+    ``forced`` (0-based index into the generated tokens) wins when provided —
+    the elicitation-retest path needs the margin at the FIRST generated token
+    for out-of-scaffold arms whose output carries no family marker (e.g. a raw
+    "Answer: Safe or Unsafe" read). An out-of-range forced step resolves to
+    None (never a fabricated margin). Without ``forced``, the marker scan
+    decides (unchanged behaviour).
+    """
+    if forced is not None:
+        return forced if 0 <= forced < len(decoded_tokens or []) else None
+    return decision_step_index(decoded_tokens, marker)
+
+
 # --------------------------------------------------------------------------- #
 # Model-side read — generate, parse, margin
 # --------------------------------------------------------------------------- #
@@ -226,6 +242,8 @@ def verdict_read(
     max_new_tokens: int = 24,
     device=None,
     add_generation_prompt: bool = True,
+    raw_text: str | None = None,
+    decision_step: int | None = None,
 ) -> dict:
     """One guard judgement with both readouts: label parse + verdict-token margin.
 
@@ -234,6 +252,11 @@ def verdict_read(
     unresolvable — never a fabricated number), ``top5`` (evidence), ``raw``
     (the generated verdict text) and ``divergent`` (parse and margin disagree),
     plus ``reason`` when the margin could not be computed.
+
+    ``raw_text`` (elicitation retest): when given, the prompt is tokenized
+    AS-IS — no chat scaffold — and ``messages`` is ignored. ``decision_step``
+    forces the margin's step index (e.g. 0 for raw arms whose verdict is the
+    first generated token); default None keeps the family-marker scan.
     """
     import torch  # lazy: keep this module importable without the model stack
 
@@ -241,9 +264,12 @@ def verdict_read(
     marker = FAMILY_SPECS[fam]["decision_marker"]
     tok_ids = resolve_verdict_tokens(tok, tokens)
 
-    text = tok.apply_chat_template(messages, tokenize=False,
-                                   add_generation_prompt=add_generation_prompt)
-    inp = tok(text, return_tensors="pt")
+    if raw_text is not None:
+        inp = tok(raw_text, return_tensors="pt")
+    else:
+        text = tok.apply_chat_template(messages, tokenize=False,
+                                       add_generation_prompt=add_generation_prompt)
+        inp = tok(text, return_tensors="pt")
     dev = device
     if dev is None:
         try:
@@ -269,7 +295,7 @@ def verdict_read(
                    "divergent": None, "reason": None})
 
     pieces = [tok.decode([tid], skip_special_tokens=False) for tid in ids]
-    step = decision_step_index(pieces, marker)
+    step = resolve_decision_step(pieces, marker, forced=decision_step)
     result["decision_step"] = step
     if step is None:
         result["reason"] = f"decision marker {marker!r} never completed in {len(ids)} generated tokens"
