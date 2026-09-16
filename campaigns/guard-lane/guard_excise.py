@@ -71,11 +71,9 @@ def main() -> None:
         tok.pad_token = tok.eos_token
     dtype = {"bfloat16": torch.bfloat16, "float16": torch.float16,
              "float32": torch.float32}.get(getattr(cfg, "dtype", "bfloat16"), torch.bfloat16)
-    try:
-        model = AutoModelForCausalLM.from_pretrained(cfg.model_id, dtype=dtype, device_map="cuda")
-    except TypeError:
-        model = AutoModelForCausalLM.from_pretrained(cfg.model_id, torch_dtype=dtype, device_map="cuda")
-    model.eval()
+    from guard_load import load_guard_model  # env-driven device map (4B offload)
+
+    model = load_guard_model(cfg.model_id, dtype)
 
     dirs = np.load(RESULTS / f"directions_{args.tag}.npz")
     log(f"editing layers {layers} · weights {args.weights} · alpha {args.alpha}")
