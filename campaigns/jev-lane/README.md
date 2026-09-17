@@ -61,6 +61,8 @@ distillation; preview access is for evaluation. Therefore:
 - `jev_dilution.py` — state-attack cells (exact mirror of guard-lane's
   dilution probe, Jev as the reader).
 - `jev_mitigation.py` — sentence-read union mitigation for the residual cells.
+- `jev_calibration.py` — reliability / ECE / Brier / AUC of the probabilities
+  (local plot + JSON).
 - `outreach-typesafe.md` — the publication/coordination note (draft).
 
 ## Run order
@@ -70,9 +72,9 @@ distillation; preview access is for evaluation. Therefore:
 3. `python3 jev_autopsy.py` — vs the pristine guard's per-item records. ✓
 4. `python3 jev_dilution.py` — state-attack cells (mirror of guard-lane's probe). ✓
 5. `python3 jev_mitigation.py` — sentence-read union vs the residual cells. ✓
-6. LATER: calibration curve (probability vs correctness), judge-shootout vs the
-   thinking-model judge stack, elicitation-analog arms, n-bump replication of the
-   dilution soft spot.
+6. `python3 jev_calibration.py` — reliability/ECE/Brier/AUC on the bank. ✓
+7. LATER: judge-shootout vs the thinking-model judge stack, elicitation-analog
+   arms, n-bump replication of the dilution soft spot.
 
 ## What this is NOT
 
