@@ -109,9 +109,14 @@ def main() -> None:
             for r in rows:
                 if r.get("layer") != layer or r["condition"] != cond or "error" in r:
                     continue
-                key = "rand" if r["rand"] else f"{r['alpha']:+.0f}"
-                grp.setdefault(key, []).append(r)
-            for key in sorted(grp, key=lambda s: (s == "rand", float(s) if s != "rand" else 0)):
+                grp.setdefault(r["cond"], []).append(r)
+
+            def _key(s: str):
+                if s == "rand+16":
+                    return (2, 0.0)
+                return (0 if s.startswith("a") else 1, float(s[1:]))
+
+            for key in sorted(grp, key=_key):
                 rs = grp[key]
                 n_ref = sum(1 for r in rs if r.get("choice") == "refuse")
                 print(f"   alpha {key:>6}: P(refuse)={p_ref(rs)}  reads_refuse={n_ref}/{len(rs)}")
