@@ -34,3 +34,7 @@ campaigns/**/heretic-55_transcripts_*_FULL.json
 campaigns/**/*_512tok_bak.json
 # hf-upload: keep the provenance/config files, never the weight binary
 campaigns/**/hf-upload/model.safetensors
+
+# jev-lane: raw Jev readouts stay LOCAL until TypeSafe clears publication
+# (preview Interfaces ToS §1(v) — no publishing performance info without OK)
+campaigns/jev-lane/results/
