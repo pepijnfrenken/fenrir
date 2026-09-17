@@ -1,7 +1,10 @@
 # Campaign: Jev lane — the closed judge (TypeSafe Jev as a guard instrument)
 
-**Status (2026-09-17): STARTED.** Smoke + first readout on the guard-lane
-slice-2 test bank (160 pairs). No conclusions until the smoke passes.
+**Status (2026-09-17): bank readout, autopsy, and the state-attack (dilution)
+mirror complete; fine-grained-read mitigation running.** Numbers, per-item
+records and the findings log live in `results/` — **local only** until TypeSafe
+clears publication (see below). The scripts here are methodology; the public
+repo intentionally carries no Jev numbers.
 
 ## Why this lane exists
 
@@ -53,16 +56,23 @@ distillation; preview access is for evaluation. Therefore:
 - `jev_client.py` — minimal System One client (vendored from the wave-5
   beer-game harness); key: env `TYPESAFE_API_KEY` or `.env.local` (gitignored).
 - `jev_probe.py` — smoke + bank readout.
+- `jev_autopsy.py` — cross-reference vs the pristine guard's per-item records
+  (misses, overlap, operating points).
+- `jev_dilution.py` — state-attack cells (exact mirror of guard-lane's
+  dilution probe, Jev as the reader).
+- `jev_mitigation.py` — sentence-read union mitigation for the residual cells.
 - `outreach-typesafe.md` — the publication/coordination note (draft).
 
 ## Run order
 
-1. `python3 jev_probe.py --smoke` — instrument sanity (canned pairs).
-2. `python3 jev_probe.py` — slice-2 test readout (default bank; `--n` for a quick pass).
-3. NEXT (planned): port guard-lane's dilution cells (best-evade: benign prompt +
-   250-char span first + benign flood) and the order matrix onto the Jev battery.
-4. LATER: calibration curve (probability vs correctness), judge-shootout vs the
-   thinking-model judge stack, elicitation-analog arms.
+1. `python3 jev_probe.py --smoke` — instrument sanity (canned pairs). ✓
+2. `python3 jev_probe.py` — slice-2 test readout (default bank; `--n` for a quick pass). ✓
+3. `python3 jev_autopsy.py` — vs the pristine guard's per-item records. ✓
+4. `python3 jev_dilution.py` — state-attack cells (mirror of guard-lane's probe). ✓
+5. `python3 jev_mitigation.py` — sentence-read union vs the residual cells. (running)
+6. LATER: calibration curve (probability vs correctness), judge-shootout vs the
+   thinking-model judge stack, elicitation-analog arms, n-bump replication of the
+   dilution soft spot.
 
 ## What this is NOT
 
