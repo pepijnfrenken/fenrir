@@ -69,7 +69,7 @@ distillation; preview access is for evaluation. Therefore:
 2. `python3 jev_probe.py` — slice-2 test readout (default bank; `--n` for a quick pass). ✓
 3. `python3 jev_autopsy.py` — vs the pristine guard's per-item records. ✓
 4. `python3 jev_dilution.py` — state-attack cells (mirror of guard-lane's probe). ✓
-5. `python3 jev_mitigation.py` — sentence-read union vs the residual cells. (running)
+5. `python3 jev_mitigation.py` — sentence-read union vs the residual cells. ✓
 6. LATER: calibration curve (probability vs correctness), judge-shootout vs the
    thinking-model judge stack, elicitation-analog arms, n-bump replication of the
    dilution soft spot.
