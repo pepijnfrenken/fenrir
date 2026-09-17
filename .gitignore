@@ -38,3 +38,4 @@ campaigns/**/hf-upload/model.safetensors
 # jev-lane: raw Jev readouts stay LOCAL until TypeSafe clears publication
 # (preview Interfaces ToS §1(v) — no publishing performance info without OK)
 campaigns/jev-lane/results/
+campaigns/jev-lane/lens/out/
