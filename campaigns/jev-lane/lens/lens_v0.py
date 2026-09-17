@@ -118,7 +118,10 @@ def cmd_run(args) -> None:
     base = model.model
     print(f"[lens] base children: {[n for n, _ in base.named_children()]}", flush=True)
     L = len(base.layers)
-    hs_idx = sorted({max(1, L // 4), L // 2, (3 * L) // 4, L})
+    if args.all_layers:
+        hs_idx = list(range(1, L + 1))
+    else:
+        hs_idx = sorted({max(1, L // 4), L // 2, (3 * L) // 4, L})
     print(f"[lens] {L} blocks; reading at hs indices {hs_idx} "
           f"(depths {[round(100 * k / L) for k in hs_idx]}%)", flush=True)
 
@@ -203,6 +206,8 @@ def cmd_run(args) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--build-items", action="store_true")
+    ap.add_argument("--all-layers", action="store_true",
+                    help="lens every block output (hs 1..L) instead of 4 depths")
     ap.add_argument("--items", default=str(ITEMS_DEFAULT))
     ap.add_argument("--model", default=MODEL_DEFAULT)
     ap.add_argument("--tag", default=TAG_DEFAULT)
