@@ -201,6 +201,14 @@ lineages).
 
 ## License
 
-**PolyForm Noncommercial License 1.0.0** — full open source for
-non-commercial use (view, fork, modify, study, learn, share), but **no
-commercial use** without permission. See [LICENSE](LICENSE).
+**MIT** — the toolkit is free software: use it, fork it, modify it, ship it,
+including commercially. See [LICENSE](LICENSE).
+
+Relicensed from PolyForm Noncommercial 1.0.0 on 11 October 2026. Copies taken
+before that date are still governed by the terms they came with; everything from
+this commit onward is MIT.
+
+The abliterated model variants published on Hugging Face are separate artifacts
+and carry the licence of the checkpoint they were derived from. Check each model
+card before reusing the weights. This licence covers the toolkit in this
+repository.
