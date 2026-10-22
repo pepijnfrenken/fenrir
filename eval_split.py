@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
+from itertools import zip_longest
 
 DEFAULT_SEED = "absolver:qwen25:v1"
 
@@ -104,10 +105,13 @@ def build_split(
     counts = {"train": train_size, "tune": tune_size, "test": test_size}
     assigns: dict[str, list[dict]] = {"train": [], "tune": [], "test": []}
     remaining = dict(counts)
-    # interleave partitions per stratum: train, tune, test, train, tune, ...
+    # Interleave strata before filling partitions, rather than exhausting the
+    # earliest strata on train and leaving only the latest ones for test.
     order = ["train", "tune", "test"]
-    for s in range(strata):
-        for rec in stratified[s]:
+    for round_ in zip_longest(*(stratified[s] for s in range(strata))):
+        for rec in round_:
+            if rec is None:
+                continue
             for part in order:
                 if remaining[part] > 0:
                     assigns[part].append(rec)

@@ -77,3 +77,14 @@ cfg = load_config("models/tiny_test.yaml")  # hf-internal-testing/tiny-random-Ll
 result = graph.invoke({"config": cfg})
 # refusal_rate: 0.0, quality_pass: True, output_path: abliterated_tiny-random-LlamaForCausalLM
 ```
+
+## Prompt split correction (2026-10-22)
+
+`build_split` now interleaves positional strata before filling train/tune/test.
+Previously, the earliest source blocks filled train while the latest blocks
+were reserved for test, despite the documented stratification contract.
+Six focused regression cases cover balanced and uneven strata, deterministic
+non-overlapping partitions, empty strata, and an empty dataset.
+The full local suite passes (121 tests, with the optional SQLite checkpointer installed).
+Existing saved split manifests should be regenerated: partition membership
+changes under this correction even when the seed is unchanged.
