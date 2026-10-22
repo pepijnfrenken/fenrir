@@ -9,6 +9,7 @@ Verifies the three things that can be checked without loading a guard:
 Run: .venv/bin/python campaigns/guard-lane/test_excise_ladder_offline.py
 """
 import importlib.util
+import json
 import sys
 import types
 
@@ -118,8 +119,38 @@ def test_edit_alpha_semantics():
     print("apply_edit OK: alpha is the fraction of the d-projection removed")
 
 
+def test_save_spec_and_thin_bank():
+    """--save matching and the thin-bank guard, both exercised before a GPU run."""
+    save_spec = "24-26:1.1"
+    layers, alpha = lad.parse_grid(save_spec)[0]
+    want = lad.label(layers, alpha)
+    assert want == "l24-25-26_a1.1", want
+    # the save comparison the driver does per grid point
+    grid = lad.parse_grid(lad.GRID)
+    hits = [lad.label(*g) for g in grid if lad.label(*g) == lad.label(*parse_pair(save_spec))]
+    assert hits == ["l24-25-26_a1.1"], hits
+    print("save-spec matching OK:", hits)
+
+    import subprocess
+    thin = "/tmp/thin_bank.jsonl"
+    with open(thin, "w", encoding="utf-8") as fh:
+        for i, exp in enumerate(["Unsafe"] * 10 + ["Safe"] * 10):
+            fh.write(json.dumps({"pair_id": f"p{i}", "prompt": "p", "response": "r",
+                                 "expected": exp, "split": "test"}) + "\n")
+    r = subprocess.run([sys.executable, PATH, "--pairs", thin, "--dry-run"],
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode != 0, r.stdout
+    assert "bank too thin" in (r.stdout + r.stderr), (r.stdout, r.stderr)
+    print("thin-bank guard OK: refuses a 10/10 read with the small-n reason")
+
+
+def parse_pair(spec):
+    return lad.parse_grid(spec)[0]
+
+
 if __name__ == "__main__":
     test_messages()
     test_aggregate_and_gates()
     test_edit_alpha_semantics()
+    test_save_spec_and_thin_bank()
     print("ALL OFFLINE CHECKS PASSED")
