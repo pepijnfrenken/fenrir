@@ -1035,15 +1035,7 @@ def verify_node(state: AbliterationState) -> dict[str, Any]:
                     h_less = list(state.get("harmless_prompts") or [])
                     try:
                         n_pairs = min(len(h_all), len(h_less))
-                        if n_pairs >= 3 * cfg.n_verify_prompts:
-                            split = build_split(
-                                h_all, h_less,
-                                train_size=2 * cfg.n_verify_prompts,
-                                tune_size=cfg.n_verify_prompts,
-                                test_size=cfg.n_verify_prompts,
-                                seed=getattr(cfg, "eval_split_seed", "absolver:qwen25:v1"),
-                            )
-                        elif n_pairs >= 2 * cfg.n_verify_prompts:
+                        if n_pairs >= 2 * cfg.n_verify_prompts:
                             split = build_split(
                                 h_all, h_less,
                                 train_size=n_pairs - 2 * cfg.n_verify_prompts,
@@ -1163,17 +1155,9 @@ def verify_node(state: AbliterationState) -> dict[str, Any]:
         held_out: list[str] = []
         try:
             # Pair to the shorter list; size test = n_verify, tune = n_verify,
-            # train = the rest (or 2*n_verify if the pool is big enough).
+            # train = the rest, so partition sizes cover the entire paired pool.
             n_pairs = min(len(harmful_all), len(harmless_all))
-            if n_pairs >= 3 * cfg.n_verify_prompts:
-                split = build_split(
-                    harmful_all, harmless_all,
-                    train_size=2 * cfg.n_verify_prompts,
-                    tune_size=cfg.n_verify_prompts,
-                    test_size=cfg.n_verify_prompts,
-                    seed=getattr(cfg, "eval_split_seed", "absolver:qwen25:v1"),
-                )
-            elif n_pairs >= 2 * cfg.n_verify_prompts:
+            if n_pairs >= 2 * cfg.n_verify_prompts:
                 split = build_split(
                     harmful_all, harmless_all,
                     train_size=n_pairs - 2 * cfg.n_verify_prompts,

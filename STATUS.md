@@ -77,3 +77,18 @@ cfg = load_config("models/tiny_test.yaml")  # hf-internal-testing/tiny-random-Ll
 result = graph.invoke({"config": cfg})
 # refusal_rate: 0.0, quality_pass: True, output_path: abliterated_tiny-random-LlamaForCausalLM
 ```
+
+## VERIFY paired-pool sizing (2026-10-22)
+
+Both the pristine baseline and edited-model gate paths now reserve
+`n_verify_prompts` pairs each for tune and test, assigning the rest of the
+paired pool to train. Previously, pools of at least `3 * n_verify_prompts`
+were forced into a split totaling `4 * n_verify_prompts`, so every such
+pool except that exact size silently fell back to an offset slice.
+
+Twelve parameterized regressions exercise both VERIFY paths with 40, 50,
+60, 70, 80, and 100 pairs (20 tune/test prompts), including baseline-map
+identity and restoration of the edited weights. Six cases fail on the
+original implementation. Full local suite: 127 passed, with the optional
+SQLite checkpointer installed. No accelerator or pretrained-model run was
+used for this control-flow regression.

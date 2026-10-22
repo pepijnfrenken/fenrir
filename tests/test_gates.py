@@ -17,6 +17,10 @@ from pathlib import Path
 import pytest
 import torch
 
+import eval_split
+import gates
+import verify
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from config import ModelConfig  # noqa: E402
@@ -428,3 +432,64 @@ def test_ablated_run_accepts_a_recorded_bundle_gate_shape(cfg, rec_model):
                            benchmark_scores={}, flavor="chat", is_pristine=False,
                            pristine_refusal_axis=axis)
         assert report["baseline_sanity"]["passed"] is True, axis
+
+
+@pytest.mark.parametrize("n_pairs", [40, 50, 60, 70, 80, 100])
+@pytest.mark.parametrize("with_pristine", [False, True])
+def test_verify_partitions_the_full_paired_pool(
+    cfg, model, tok, monkeypatch, caplog, n_pairs, with_pristine
+):
+    """Both pristine and edited paths must build valid, identical partitions."""
+    cfg.n_verify_prompts = 20
+    cfg.verify_sample_size = 0
+    cfg.verify_benchmarks = ["arc_easy"]
+    cfg.model_card_targets = {}
+    cfg.verify_pristine_baseline = with_pristine
+    cfg.behavior_enabled = False
+    # A nonempty state dict lets VERIFY exercise its pristine/restore path.
+    model.register_parameter("anchor", torch.nn.Parameter(torch.zeros(1)))
+    monkeypatch.setattr(verify, "get_model", lambda: model)
+    monkeypatch.setattr(verify, "get_tokenizer", lambda: tok)
+    monkeypatch.setitem(verify._RUNNER, "arc_easy", lambda *args, **kwargs: 0.5)
+
+    built = []
+    build_split = eval_split.build_split
+
+    def record_split(*args, **kwargs):
+        split = build_split(*args, **kwargs)
+        built.append(split)
+        return split
+
+    monkeypatch.setattr(eval_split, "build_split", record_split)
+    observed = {}
+
+    def record_gates(*args, **kwargs):
+        observed.update(kwargs)
+        return {"eval_pass": False}
+
+    monkeypatch.setattr(gates, "run_gates", record_gates)
+    state = {
+        "config": cfg,
+        "harmful_prompts": [f"harmful-{i}" for i in range(n_pairs)],
+        "harmless_prompts": [f"harmless-{i}" for i in range(n_pairs)],
+    }
+    if with_pristine:
+        state["pristine_state_dict"] = {"anchor": torch.ones(1)}
+
+    result = verify.verify_node(state)
+
+    assert len(built) == (2 if with_pristine else 1)
+    for split in built:
+        assert (len(split.train), len(split.tune), len(split.test)) == (
+            n_pairs - 40, 20, 20
+        )
+        assert set(split.train + split.tune + split.test) == set(state["harmful_prompts"])
+    assert all(split == built[0] for split in built)
+    assert observed["prompts"] == list(built[0].test)
+    assert result["gate_report"]["held_out_size"] == 20
+    assert "falling back to offset slice" not in caplog.text
+    if with_pristine:
+        expected = {verify._digest(prompt) for prompt in built[0].test}
+        assert set(observed["pristine_logprobs"]) == expected
+        assert set(observed["pristine_logprobs_first"]) == expected
+        torch.testing.assert_close(model.anchor, torch.zeros(1))
