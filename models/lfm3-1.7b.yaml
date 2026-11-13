@@ -46,7 +46,7 @@ gate_coherence_min: 0.90
 gate_degeneracy_max: 0.05
 gate_capability_min: 0.83
 gate_ppl_increase_max: 0.15
-gate_first_token_kl_max: 0.1
+gate_kl_max: 0.1
 
 # No judge in this campaign: the desktop has no JUDGE_API_KEY and the gate bundle
 # (style-aware refusal + capability + PPL + KL + coherence) is the contract.
