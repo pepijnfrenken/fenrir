@@ -13,7 +13,7 @@ landscape_scan: >
   None of these redirects this campaign: from-scratch is primary. They matter for
   (a) an honest NEGATIVE verdict would have to acknowledge them, and (b) they are
   a later verification/forensics target only if the from-scratch map is exhausted.
-status: IN PROGRESS
+status: NEGATIVE (recipe did not transfer; see REPORT.md)
 hardware: desktop RTX 3060 Ti 8GB (WSL2 Ubuntu-24.04, driver 561.17, CUDA 12.6)
 cost: 0 (own hardware); est. 1-2 GPU-hours
 baseline_sanity: >
@@ -30,9 +30,15 @@ pre_edit_steer_gate: >
 methods_tried: [mpoa]
 dir_methods_tried: [paired]
 verdict_summary: >
-  PENDING — phases run on the desktop; numbers land in this section from the
-  bundle JSONs, never from intention.
-key_numeric_results: PENDING
+  NEGATIVE. MPOA projection of the paired output-phase direction into
+  o_proj+conv_out+w2 over 24 layers removes refusal only in proportion to the
+  distribution damage it causes. Best row: alpha 2.0, 7/12 refused, KL 1.388
+  against a 0.1 cap. The pre-edit causal gate, once it could fail, returns NOT
+  CAUSAL: steering collapses the decoder at both signs (0-1/8 coherent).
+key_numeric_results: >
+  pristine 12/12 refused; a0.5 11/12 KL 0.654; a1.0 9/12 KL 0.986; a2.0 7/12 KL
+  1.388; attention-only a2.0 12/12 KL 0.326. No alpha meets refusal<=3% and
+  KL<=0.1. eval_pass false on every config.
 ---
 
 # LFM3-1.7B — first from-scratch campaign
@@ -163,7 +169,7 @@ This also explains the sign anomaly from rung 1: the direction was never a
 signed refusal axis on this model. Steering it at either sign just wrecks the
 decoder, which is why refusal counts fell at both ends.
 
-### Rung 3 — mechanism test (running)
+### Rung 3 — mechanism test (finished)
 
 Pristine gates re-collected on the 12-prompt split for a like-for-like
 baseline, plus one declared hypothesis: the edit wrote the same direction into
@@ -171,7 +177,18 @@ baseline, plus one declared hypothesis: the edit wrote the same direction into
 KL damage comes from the conv stack (whose out_proj is followed by a post-norm,
 i.e. a different residual path), an attention-only edit at alpha 2.0
 (`layers 3,7,11,15,19,23`, `o_proj+w2`) should hold KL down while keeping the
-refusal effect. One config, declared before the run.
+refusal effect. One config, declared before the run. Result: refusal **12/12** (effect gone),
+KL **0.326** (damage down 4.2x), PPL +13.8%. Refusal removal and damage scale
+together, so the effect is not separable by re-scoping coverage.
+
+### Rung 4 — thinking-budget test (finished, hypothesis dead)
+
+Re-harvest with a 320-token paired budget instead of 96. Separation at L23 is
+**3.58** vs **3.64** at 96 tokens: the direction does not depend on where in the
+reasoning it is sampled, so it is not a thinking-vs-answering axis. The fixed
+steer gate then returns **NOT CAUSAL** with every alpha flagged `COLLAPSE`
+(0/8, 0/8, 0/8, 1/8 coherent). Full verdict, ledger and next steps:
+`REPORT.md`.
 
 ## Bugs found / decisions worth remembering
 
