@@ -54,9 +54,28 @@ pristine 0.400), not an improvement.
 ## Pre-edit causal gate (fixed instrument)
 
 Harvest: `paired`, 20 prompts, 320-token continuation budget (raised from 96 to
-test whether the direction was a thinking-vs-answering axis). Separation at L23
-3.58 with the 320 budget vs 3.64 with 96, so the direction does not depend on
-where in the reasoning it is sampled. That hypothesis is dead.
+test whether the direction was a thinking-vs-answering axis).
+
+| budget | top-5 layer separation |
+|---|---|
+| 96 tokens | L23 3.64, L22 3.26, L21 2.76, L20 2.45, L19 2.03 |
+| 320 tokens | L23 3.58, L22 3.29, L21 2.79, L20 2.53, L19 2.07 |
+
+Per-layer cosine between the two harvests: **mean 0.911**, L23 0.940, minimum
+0.804 (L1). So the 320-token harvest recovers substantially the same direction,
+not a different one. If the direction had been a thinking-vs-answering artefact
+of the 96-token window, quadrupling the budget past the end of the reasoning
+block would have moved it; it moved by a cosine of 0.09. That hypothesis is dead,
+and the direction is refused as a refusal axis on its own merits below.
+
+Race note, recorded because it affects how much the log can be trusted: a second
+driver (`proc_87c410692949`) started this rung earlier, mangled its own pull
+(`zsh:2: command not found: PULL`) and was SIGTERMed by hand inside `harvest320`
+(`rc=143`, visible as a bare `Terminated` line in `harvest320.log`). Its partial
+harvest never reached the rename step. The completed run then wrote
+`directions-chat-paired-t320.pt` fresh (mtime 19:38, `harvest320.done`), and the
+steer run consumed that file to produce an 8/8 coherent baseline, which is the
+check that the file is intact.
 
 | alpha | refusal | benign | coherent | verdict |
 |---|---|---|---|---|

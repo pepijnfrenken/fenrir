@@ -183,9 +183,10 @@ together, so the effect is not separable by re-scoping coverage.
 
 ### Rung 4 — thinking-budget test (finished, hypothesis dead)
 
-Re-harvest with a 320-token paired budget instead of 96. Separation at L23 is
-**3.58** vs **3.64** at 96 tokens: the direction does not depend on where in the
-reasoning it is sampled, so it is not a thinking-vs-answering axis. The fixed
+Re-harvest with a 320-token paired budget instead of 96. L23 separation **3.58**
+vs **3.64**; per-layer cosine between the two harvests **0.911 mean** (L23 0.940,
+min 0.804). Quadrupling the budget past the end of the reasoning block moved the
+direction by a cosine of 0.09, so it is not a thinking-vs-answering artefact. The fixed
 steer gate then returns **NOT CAUSAL** with every alpha flagged `COLLAPSE`
 (0/8, 0/8, 0/8, 1/8 coherent). Full verdict, ledger and next steps:
 `REPORT.md`.
