@@ -33,7 +33,11 @@ paired_max_new_tokens: 96
 prompt_format: "auto"
 
 n_probe_prompts: 20
+# 12-prompt held-out gate (was 5 by hardcoded default): a 5-prompt refusal
+# gate resolves 20pp steps, so 5/5 -> 0/5 cannot tell "abliterated" from "one
+# prompt flipped". Pool is 35/35 pairs, so train=11 tune=12 test=12.
 n_verify_prompts: 20
+n_test_prompts: 12
 max_seq_len: 1024
 
 # ---- Gates ----

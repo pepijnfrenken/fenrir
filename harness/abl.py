@@ -627,11 +627,19 @@ def cmd_collect(config_path: str, model_dir: str | None, transcript: bool,
     # held-out split (shared by gates and the pristine baseline)
     h = list(DEFAULT_HARMFUL); g = list(DEFAULT_HARMLESS)
     n = min(len(h), len(g))
-    n_test = 5
+    n_test = int(getattr(cfg, "n_test_prompts", 5) or 5)
+    if n - 2 * n_test < 1:
+        # pools too small for the requested split: shrink the test split
+        # rather than crashing or silently reusing the 5-prompt default
+        n_test = max(1, (n - 1) // 2)
+        print(f"WARNING: n_test_prompts capped to {n_test} (pool has {n} pairs; "
+              f"needs 2*n_test+1)")
     n_train = n - 2 * n_test
     split = build_split(h[:n], g[:n], train_size=n_train, tune_size=n_test,
                         test_size=n_test, seed=cfg.eval_split_seed)
     held_out = list(split.test)
+    print(f"held-out test split: {len(held_out)}/{n} pairs "
+          f"(train={n_train} tune={n_test} test={n_test}, seed={cfg.eval_split_seed})")
 
     # For an ablated model, compute the pristine PPL + first-token-KL
     # baselines FIRST (sequential load: same peak RAM as one model), so the
@@ -819,7 +827,8 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
                    n_prompts: int | None, layers_spec: str | None,
                    flavor: str | None, from_directions: str | None = None,
                    max_new_tokens: int | None = None,
-                   require_effect: bool = False) -> int:
+                   require_effect: bool = False, n_benign: int | None = None,
+                   ppl_check: bool = False) -> int:
     """PRE-EDIT CAUSALITY GATE: alpha grid x prompts — transcripts + refusal + PPL.
 
     Non-destructive (runtime steering hooks/bias vectors — no weight edits,
@@ -931,8 +940,9 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
 
     test_harmful = [format_prompt(tok, p, flavor) for p in list(DEFAULT_HARMFUL)[: n_prompts or 3]]
     test_harmful_raw = list(DEFAULT_HARMFUL)[: n_prompts or 3]
-    test_benign = [format_prompt(tok, p, flavor) for p in list(DEFAULT_HARMLESS)[:2]]
-    test_benign_raw = list(DEFAULT_HARMLESS)[:2]
+    n_ben = int(n_benign or 2)
+    test_benign = [format_prompt(tok, p, flavor) for p in list(DEFAULT_HARMLESS)[:n_ben]]
+    test_benign_raw = list(DEFAULT_HARMLESS)[:n_ben]
     test_pairs = [(raw, f) for raw, f in zip(test_harmful_raw, test_harmful)]
 
     def _ppl(formatted: str) -> float | None:
@@ -960,11 +970,19 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
 
     rows: list[dict[str, Any]] = []
     transcript: list[dict[str, Any]] = []
+    # alpha 0.0 is the baseline row; a grid that also contains 0.0 must not
+    # print it twice (it did, and two identical rows read as two measurements)
+    grid = [0.0] + [a for a in alphas if a != 0.0]
+    if not ppl_check:
+        print("note: PPL column reported as '-' — steering hooks fire on the LAST "
+              "token only, so they cannot move a teacher-forced prompt PPL; the "
+              "old +0.00% was structural, not measured. pass --ppl-check to "
+              "compute it anyway.")
     # baseline (alpha=0): pristine PPL on the harmful test prompts
-    base_ppl = {raw: _ppl(f) for raw, f in test_pairs}
+    base_ppl = {raw: _ppl(f) for raw, f in test_pairs} if ppl_check else {}
     print(f"\n{'alpha':>6} | {'refusal':>8} | {'benign':>6} | {'PPL inc':>8} | notes")
     print("-" * 72)
-    for alpha in [0.0] + alphas:
+    for alpha in grid:
         _clear_steering_hooks()
         if alpha != 0.0:
             _apply_steering(model, layers, dirs, {"method": "steering",
@@ -980,9 +998,10 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
             refusals += int(_response_is_refusal(resp))
             gen.append({"alpha": alpha, "prompt": raw, "formatted": f,
                         "response": resp})
-            p_abl = _ppl(f)
-            if p_abl is not None and base_ppl.get(raw):
-                ppl_incs.append(p_abl / base_ppl[raw] - 1.0)
+            if ppl_check:
+                p_abl = _ppl(f)
+                if p_abl is not None and base_ppl.get(raw):
+                    ppl_incs.append(p_abl / base_ppl[raw] - 1.0)
         benign_responses = []
         for raw, f in zip(test_benign_raw, test_benign):
             benign_responses.append({"alpha": alpha, "prompt": raw, "formatted": f,
@@ -1155,10 +1174,18 @@ def main() -> int:
                    help="PRE-EDIT GATE: exit 3 when no alpha reduces the refusal "
                         "count, so weight edits are never blessed on a direction "
                         "that does not move behaviour")
+    p.add_argument("--n-benign", type=int, default=2,
+                   help="benign prompts per alpha for the over-refusal column "
+                        "(default 2; 0/2 is not a measurement, raise it)")
+    p.add_argument("--ppl-check", action="store_true",
+                   help="also compute teacher-forced PPL per alpha. Off by default: "
+                        "the hook steers the last token only, so this number is "
+                        "structurally 0.00%% and must not be read as a quality gate")
     p.set_defaults(fn=lambda a: cmd_steer_test(a.config, a.alphas, a.n_directions,
                                                a.n_prompts, a.layers, a.prompt_flavor,
                                                a.from_directions, a.max_new_tokens,
-                                               a.require_effect))
+                                               a.require_effect, a.n_benign,
+                                               a.ppl_check))
 
     p = sub.add_parser("list-campaigns", help="list campaign statuses")
     p.set_defaults(fn=lambda a: cmd_list_campaigns())

@@ -70,9 +70,9 @@ p3_baseline() {
 
 # ------------------------------------------------- 4. causal steer gate (exit 3)
 p4_steer() {
-  timeout 3600 "$PY" harness/abl.py steer-test "$CFG" \
+  timeout 5400 "$PY" harness/abl.py steer-test "$CFG" \
       --from-directions "$DIRS" \
-      --alphas=-3,-2,-1,0,1,2,3 --n-directions 10 --n-prompts 3 \
+      --alphas=-2,-1,0,1,2 --n-directions 10 --n-prompts 12 --n-benign 6 \
       --require-effect
 }
 

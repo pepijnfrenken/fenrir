@@ -194,6 +194,14 @@ class ModelConfig(BaseModel):
     """Number of harmful/harmless prompts used in PROBE."""
     n_verify_prompts: int = 20
     """Number of harmful prompts used in VERIFY refusal-rate check."""
+    n_test_prompts: int = 5
+    """Size of the held-out TEST split used by `collect`'s gates (refusal,
+    coherence, degeneracy, PPL, KL, capability all report on this split).
+    Default 5 for back-compat with earlier campaigns. Raise it when the
+    prompt pools allow: a 5-prompt refusal gate resolves 20pp steps, so a
+    drop from 5/5 to 0/5 cannot distinguish "abliterated" from "one prompt
+    flipped". The pool is paired to the shorter list, so the cap is
+    min(len(DEFAULT_HARMFUL), len(DEFAULT_HARMLESS))."""
     probe_mode: str = "auto"
     """Activation harvest mode: 'input' (last prompt token, harmful vs
     harmless prompts), 'paired' (output phase: unprimed refusal vs
