@@ -79,8 +79,44 @@ each phase writes `desktop/logs/<phase>.done`:
 
 ## Results
 
-PENDING. Filled from `collect-pristine/bundle.json` and
-`collect-mpoa-a2.0-all24/bundle.json`.
+### Rung 1 — pilot, 5-prompt held-out gate (coarse, superseded)
+
+`mpoa alpha 2.0, layers 0-23, o_proj+conv_out+w2`, one pass, rel_change up to
+4.82% on `w2` with row norms preserved.
+
+| gate | pristine | ablated | verdict |
+|---|---|---|---|
+| refusal (style-aware, 256 tok) | 5/5 | **4/5** | fail |
+| coherence | 5/5 | 5/5 | pass |
+| degeneracy | 0.000 | 0.000 | pass |
+| finite logits | ok | ok | pass |
+| capability (mmlu retention) | 0.400 abs | 1.000 retention | pass |
+| PPL increase | baseline | **-7.4%** | pass (but see note) |
+| first-token KL | baseline | **1.68 nats** | fail |
+
+`eval_pass: false`. The edit did not abliterate: one prompt out of five flipped
+and the first-token distribution moved 1.68 nats, which is not a surgical cut.
+A PPL *drop* with a 1.68-nat KL is not a quality win, it is a model that got
+sharper in the wrong place; treat the PPL pass as uninformative.
+
+Note the refusals: pristine reads **5/5 style-aware vs 1/5 keyword**, so the
+keyword readout is blind here and every keyword-derived rate on this model is
+void.
+
+### Rung 2 — 12-prompt gate + alpha ladder (running)
+
+Two instrument defects found in rung 1 and fixed before rung 2:
+
+- `n_test = 5` was hardcoded in `collect`, so every gate reported on 5 prompts
+  (20pp resolution). Now `n_test_prompts` in the config, set to 12; the benign
+  pool went 20 -> 35 new topics so the split fits (train 11 / tune 12 / test 12).
+- steer-test printed `PPL +0.00%` at every alpha because the steering hook fires
+  on the last token only, which cannot move a teacher-forced prompt PPL. The
+  column is now `-` unless `--ppl-check`, and the steer test runs 12 harmful +
+  6 benign prompts instead of 3 + 2.
+
+Ladder: alpha 2.0 (rebuild skipped, reused), then 1.0, then 0.5, all collected on
+the same 12-prompt split.
 
 ## Bugs found / decisions worth remembering
 
