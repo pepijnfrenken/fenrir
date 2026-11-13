@@ -212,3 +212,27 @@ rm -rf ~/hf                                                      # 3.4 GB model 
 ```
 Both are re-derivable from the Hub and the directions bundle. Bundles and logs
 stay.
+
+### Rung 5 — pre-registered before running: null-direction control + low-alpha floor
+
+Two gaps in everything above. Both declared here, before the run, with the
+falsifier written down.
+
+**Gap 1 — the low-alpha floor was never tested.** Every alpha tried so far is
+>= 0.5, and 0.5 already overshot the 0.1 KL cap by 6.5x. "Empty operating window"
+has therefore only been shown from above. Test: steer the real t320 direction at
+alpha 0.05, 0.1, 0.2, 0.35, 0.5 on the same 8 harmful / 6 benign split.
+*Falsifier:* if refusal falls while coherence holds at any of those alphas, the
+window is not empty and this campaign's verdict is wrong.
+
+**Gap 2 — no null-direction control.** Rung 4 inferred "not a refusal axis" from
+collapse at both signs. That inference assumes a semantically empty direction of
+the same magnitude would NOT destroy the decoder. Nobody tested that. `sweep.py`
+normalises `d` and applies `-d * alpha`, so alpha is in absolute hidden-state
+units and a unit random vector is exactly comparable.
+- `ctrl-random`: per-layer gaussian unit vector, seed 20261113
+- `ctrl-shuf`: the real 24 vectors with the layer assignment deranged, seed 20261113
+*Falsifier of rung 4:* if a control collapses at the same alphas as the real
+direction, then "collapses at both signs" carries no information about refusal
+and that argument is retracted. If only the real direction collapses, the
+NEGATIVE verdict is stronger than it was.
