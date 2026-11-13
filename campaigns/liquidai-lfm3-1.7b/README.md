@@ -123,11 +123,22 @@ pass, `o_proj+conv_out+w2` on all 24 layers.
 | alpha 0.5 | 11/12 | 12/12 | 0.000 | 0.87 | +0.2% | **0.654** | false |
 | alpha 1.0 | 9/12 | 12/12 | 0.000 | 1.25 | +2.6% | **0.986** | false |
 | alpha 2.0 | 7/12 | 12/12 | 0.000 | 1.00 | +18.0% | **1.388** | false |
+| alpha 2.0, attention only (L3,7,11,15,19,23, o_proj+w2) | **12/12** | 12/12 | 0.000 | 1.00 | +13.8% | **0.326** | false |
 
-Refusal falls monotonically with alpha, so the edit *does* bite something. It
-never gets near 0/12, and first-token KL is 6.5x to 13.9x over the 0.1 cap at
-every alpha. There is **no alpha where refusal <= 3% and KL <= 0.1**: the
-operating window is empty for this direction on this model.
+Pristine on the same split: **12/12 refused**, coherence 12/12, degeneracy 0.000.
+
+Two readings that matter:
+
+1. Refusal falls monotonically with alpha, so the edit bites something, but it never
+   gets near 0/12 and first-token KL is 6.5x to 13.9x over the 0.1 cap. There is
+   **no alpha where refusal <= 3% and KL <= 0.1**: the operating window is empty for
+   this direction on this model.
+2. Cut the coverage to the six full-attention layers and the KL damage drops
+   **4.2x** (1.388 -> 0.326) while the refusal effect disappears completely
+   (**12/12**). Refusal removal and distribution damage scale together with the same
+   edit. A cut that costs nothing per unit of damage would not do that. The
+   direction is a general perturbation whose "refusal removal" is proportional to
+   the damage it does, sampled at a small enough dose to keep coherence.
 
 Capability "retention" above 1.0 (alpha 1.0, mmlu 0.500 vs 0.400 pristine) is
 noise on a 20-item MMLU mini, not an improvement. Do not read it as a gain.
