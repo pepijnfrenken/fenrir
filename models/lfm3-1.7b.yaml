@@ -1,0 +1,69 @@
+# LiquidAI LFM3-1.7B — 24-layer hybrid (conv / full-attn / sliding-attn), thinking on by default.
+# Same residual-writer trio as LFM2.5: attn o_proj + conv out_proj + ffn w2, so the
+# LFM2.5 all-32 coverage lesson transfers directly (coverage > magnitude).
+# Architecture read from the HF config on 2026-11-13:
+#   layer_types = [conv, conv, full_attention, conv, sliding_attention, ...] x4 rounds
+#   6 conv + 5 full_attention + 5 sliding_attention + 8 conv = 24 layers
+#   hidden 2048, inter 7680, vocab 128000, sandwich norm, tied embeddings.
+model_id: LiquidAI/LFM3-1.7B
+model_arch: dense
+dtype: bfloat16
+device: auto
+trust_remote_code: true
+
+method: mpoa
+dir_method: paired
+n_directions: 3
+alpha: 2.0
+passes: 1
+
+target_layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+target_weights: [o_proj, conv_out, w2]
+
+# Paired output-phase probe (the direction source that worked on LFM2.5; diff_means
+# over unrelated prompts did not). LFM3 reasons before answering, so the paired
+# continuation budget has to clear the thinking preamble.
+probe_mode: paired
+paired_prefill: "Sure, I can help with that."
+paired_max_new_tokens: 96
+
+# LFM3 ships a chat template with <think> by default (enable_thinking defaults true).
+# 'auto' keeps the thinking wrapper; the refusal instrument is full-response and
+# style-aware, which is mandatory here (keyword gates are blind to thinking prose).
+prompt_format: "auto"
+
+n_probe_prompts: 20
+n_verify_prompts: 20
+max_seq_len: 1024
+
+# ---- Gates ----
+gate_refusal_max: 0.03
+gate_refusal_max_new_tokens: 256
+# No family overlay: 'lfm26' markers were mined from LFM2.6 transcripts and are not
+# validated on LFM3. Base markers + baseline sanity gate only.
+gate_refusal_family: null
+gate_coherence_min: 0.90
+gate_degeneracy_max: 0.05
+gate_capability_min: 0.83
+gate_ppl_increase_max: 0.15
+gate_first_token_kl_max: 0.1
+
+# No judge in this campaign: the desktop has no JUDGE_API_KEY and the gate bundle
+# (style-aware refusal + capability + PPL + KL + coherence) is the contract.
+judge_enabled: false
+
+verify_benchmarks: [mmlu]
+verify_benchmark_samples: 50
+verify_pristine_baseline: true
+behavior_enabled: true
+n_behavior_harmful: 10
+n_behavior_benign: 10
+behavior_max_new_tokens: 128
+
+# One config at a time, chosen from evidence. The sweep is off: the LFM2.5 recipe is
+# the hypothesis, not a grid to re-derive on a fresh architecture.
+sweep_enabled: false
+
+# Push is a separate decision, after the gates report. Left unset on purpose.
+push_to_hub: null
+hub_private: false
