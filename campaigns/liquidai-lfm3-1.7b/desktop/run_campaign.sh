@@ -34,6 +34,7 @@ phase() {
   "$@" 2>&1 | tee -a "$L/$name.log"
   local rc=${PIPESTATUS[0]}
   echo "== $name rc=$rc"
+  [ "$rc" -eq 0 ] && mark "$name"
   return "$rc"
 }
 
