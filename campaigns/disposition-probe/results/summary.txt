@@ -1,0 +1,20 @@
+arms=['pristine', 'abliterated', 'noise']  base=pristine  common items=120  file=campaigns/disposition-probe/results/combined.jsonl
+
+      pristine: n=120 mean= 50.71  SE= 0.67  95%CI=[49.37, 51.98]
+   abliterated: n=120 mean= 50.70  SE= 0.69  95%CI=[49.32, 52.01]
+         noise: n=120 mean= 50.52  SE= 0.74  95%CI=[49.00, 51.96]
+
+per tone (mean stated P(rise)):
+   bullish n= 40 pristine=55.00  abliterated=55.02  noise=55.00  
+     mixed n= 40 pristine=54.75  abliterated=54.75  noise=55.00  
+   bearish n= 40 pristine=42.38  abliterated=42.33  noise=41.55  
+
+abliterated - pristine [    all n=120]: delta= -0.01 pp  95%CI=[-0.72, +0.69]  sign +19/-18/083  CI excludes 0: False
+abliterated - pristine [bullish n= 40]: delta= +0.03 pp  95%CI=[+0.00, +0.07]  sign +1/-0/039  CI excludes 0: False
+abliterated - pristine [  mixed n= 40]: delta= +0.00 pp  95%CI=[-0.50, +0.55]  sign +9/-5/026  CI excludes 0: False
+abliterated - pristine [bearish n= 40]: delta= -0.05 pp  95%CI=[-2.00, +2.15]  sign +9/-13/018  CI excludes 0: False
+
+noise - pristine [    all n=120]: delta= -0.19 pp  95%CI=[-1.07, +0.68]  sign +9/-8/0103  CI excludes 0: False
+noise - pristine [bullish n= 40]: delta= +0.00 pp  95%CI=[+0.00, +0.00]  sign +0/-0/040  CI excludes 0: False
+noise - pristine [  mixed n= 40]: delta= +0.25 pp  95%CI=[+0.00, +0.75]  sign +1/-0/039  CI excludes 0: False
+noise - pristine [bearish n= 40]: delta= -0.82 pp  95%CI=[-3.42, +1.90]  sign +8/-8/024  CI excludes 0: False

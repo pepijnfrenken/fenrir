@@ -1,0 +1,9 @@
+{"arm": "smoke3", "item": "corvus-6-15-bullish-12", "tone": "bullish", "sample": 0, "mode": "prob", "raw": "55", "choice": "55", "prob": 55}
+{"arm": "smoke3", "item": "ivar-5-5-bearish-37", "tone": "bearish", "sample": 0, "mode": "prob", "raw": "40", "choice": "40", "prob": 40}
+{"arm": "smoke3", "item": "juno-2-13-mixed-43", "tone": "mixed", "sample": 0, "mode": "prob", "raw": "55", "choice": "55", "prob": 55}
+{"arm": "smoke3", "item": "ivar-10-5-bullish-43", "tone": "bullish", "sample": 0, "mode": "prob", "raw": "55", "choice": "55", "prob": 55}
+{"arm": "smoke3", "item": "kell-6-9-bearish-16", "tone": "bearish", "sample": 0, "mode": "prob", "raw": "33", "choice": "33", "prob": 33}
+{"arm": "smoke3", "item": "mira-10-16-mixed-32", "tone": "mixed", "sample": 0, "mode": "prob", "raw": "55", "choice": "55", "prob": 55}
+{"arm": "smoke3", "item": "ivar-15-15-bullish-46", "tone": "bullish", "sample": 0, "mode": "prob", "raw": "55", "choice": "55", "prob": 55}
+{"arm": "smoke3", "item": "esker-2-4-bearish-22", "tone": "bearish", "sample": 0, "mode": "prob", "raw": "45", "choice": "45", "prob": 45}
+{"arm": "smoke3", "item": "belco-13-8-mixed-44", "tone": "mixed", "sample": 0, "mode": "prob", "raw": "55", "choice": "55", "prob": 55}

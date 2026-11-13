@@ -1,0 +1,51 @@
+== building noise control (rel_l2 0.025)
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]Loading weights: 100%|██████████| 148/148 [00:00<00:00, 3334.68it/s]
+perturbed 103 tensors at rel_l2 0.025
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:07<00:00,  7.85s/it]Writing model shards: 100%|██████████| 1/1 [00:07<00:00,  7.89s/it]
+saved -> campaigns/disposition-probe/models/noise-0.025
+== pristine (LiquidAI/LFM2.5-1.2B-Instruct)
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]Loading weights:  11%|█▏        | 17/148 [00:00<00:01, 114.80it/s]Loading weights:  20%|█▉        | 29/148 [00:00<00:01, 101.16it/s]Loading weights:  27%|██▋       | 40/148 [00:00<00:01, 89.42it/s] Loading weights:  34%|███▍      | 50/148 [00:00<00:01, 87.88it/s]Loading weights:  67%|██████▋   | 99/148 [00:00<00:00, 202.05it/s]Loading weights:  82%|████████▏ | 121/148 [00:00<00:00, 199.32it/s]Loading weights:  96%|█████████▌| 142/148 [00:00<00:00, 178.35it/s]Loading weights: 100%|██████████| 148/148 [00:00<00:00, 161.83it/s]
+  pristine: 25/120 items, 25 gens, 213s (0.12 gen/s)
+  pristine: 50/120 items, 50 gens, 421s (0.12 gen/s)
+  pristine: 75/120 items, 75 gens, 629s (0.12 gen/s)
+  pristine: 100/120 items, 100 gens, 847s (0.12 gen/s)
+DONE pristine: 120 generations -> campaigns/disposition-probe/results/pristine.jsonl
+== abliterated (PinoCookie/LFM2.5-1.2B-Instruct-Abliterated)
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]Loading weights:  57%|█████▋    | 84/148 [00:00<00:00, 655.53it/s]Loading weights: 100%|██████████| 148/148 [00:00<00:00, 179.51it/s]
+  abliterated: 25/120 items, 25 gens, 218s (0.11 gen/s)
+  abliterated: 50/120 items, 50 gens, 430s (0.12 gen/s)
+  abliterated: 75/120 items, 75 gens, 645s (0.12 gen/s)
+  abliterated: 100/120 items, 100 gens, 860s (0.12 gen/s)
+DONE abliterated: 120 generations -> campaigns/disposition-probe/results/abliterated.jsonl
+== noise (campaigns/disposition-probe/models/noise-0.025)
+Loading weights:   0%|          | 0/148 [00:00<?, ?it/s]Loading weights:  10%|█         | 15/148 [00:00<00:01, 109.08it/s]Loading weights:  36%|███▌      | 53/148 [00:00<00:00, 155.26it/s]Loading weights:  51%|█████▏    | 76/148 [00:00<00:00, 133.67it/s]Loading weights:  61%|██████    | 90/148 [00:00<00:00, 128.37it/s]Loading weights:  70%|██████▉   | 103/148 [00:00<00:00, 88.54it/s]Loading weights:  78%|███████▊  | 116/148 [00:01<00:00, 94.92it/s]Loading weights:  86%|████████▌ | 127/148 [00:01<00:00, 89.26it/s]Loading weights:  95%|█████████▍| 140/148 [00:01<00:00, 92.55it/s]Loading weights: 100%|██████████| 148/148 [00:01<00:00, 109.94it/s]
+  noise: 25/120 items, 25 gens, 216s (0.12 gen/s)
+  noise: 50/120 items, 50 gens, 419s (0.12 gen/s)
+  noise: 75/120 items, 75 gens, 627s (0.12 gen/s)
+  noise: 100/120 items, 100 gens, 844s (0.12 gen/s)
+DONE noise: 120 generations -> campaigns/disposition-probe/results/noise.jsonl
+== analysing
+arms=['pristine', 'abliterated', 'noise']  base=pristine  common items=120  file=campaigns/disposition-probe/results/combined.jsonl
+
+      pristine: n=120 mean= 50.71  SE= 0.67  95%CI=[49.37, 51.98]
+   abliterated: n=120 mean= 50.70  SE= 0.69  95%CI=[49.32, 52.01]
+         noise: n=120 mean= 50.52  SE= 0.74  95%CI=[49.00, 51.96]
+
+per tone (mean stated P(rise)):
+   bullish n= 40 pristine=55.00  abliterated=55.02  noise=55.00  
+     mixed n= 40 pristine=54.75  abliterated=54.75  noise=55.00  
+   bearish n= 40 pristine=42.38  abliterated=42.33  noise=41.55  
+
+abliterated - pristine [    all n=120]: delta= -0.01 pp  95%CI=[-0.72, +0.69]  sign +19/-18/083  CI excludes 0: False
+abliterated - pristine [bullish n= 40]: delta= +0.03 pp  95%CI=[+0.00, +0.07]  sign +1/-0/039  CI excludes 0: False
+abliterated - pristine [  mixed n= 40]: delta= +0.00 pp  95%CI=[-0.50, +0.55]  sign +9/-5/026  CI excludes 0: False
+abliterated - pristine [bearish n= 40]: delta= -0.05 pp  95%CI=[-2.00, +2.15]  sign +9/-13/018  CI excludes 0: False
+
+noise - pristine [    all n=120]: delta= -0.19 pp  95%CI=[-1.07, +0.68]  sign +9/-8/0103  CI excludes 0: False
+noise - pristine [bullish n= 40]: delta= +0.00 pp  95%CI=[+0.00, +0.00]  sign +0/-0/040  CI excludes 0: False
+noise - pristine [  mixed n= 40]: delta= +0.25 pp  95%CI=[+0.00, +0.75]  sign +1/-0/039  CI excludes 0: False
+noise - pristine [bearish n= 40]: delta= -0.82 pp  95%CI=[-3.42, +1.90]  sign +8/-8/024  CI excludes 0: False
+== done
