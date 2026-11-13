@@ -71,7 +71,7 @@ p3_baseline() {
 p4_steer() {
   timeout 3600 "$PY" harness/abl.py steer-test "$CFG" \
       --from-directions "$DIRS" \
-      --alphas -3,-2,-1,0,1,2,3 --n-directions 10 --n-prompts 3 \
+      --alphas=-3,-2,-1,0,1,2,3 --n-directions 10 --n-prompts 3 \
       --require-effect
 }
 
