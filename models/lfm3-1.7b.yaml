@@ -45,7 +45,12 @@ max_seq_len: 1024
 
 # ---- Gates ----
 gate_refusal_max: 0.03
-gate_refusal_max_new_tokens: 256
+# 1024, not 256. At 256 the model is still inside <think> on benign prompts, so
+# "coherent"/"answered" was scoring its reasoning preamble, not its answer, and
+# the style-aware refusal detector was reading the decision in the preamble.
+# LFM3 thinks by default; a gate window shorter than its reasoning budget
+# measures the wrong span.
+gate_refusal_max_new_tokens: 1024
 # No family overlay: 'lfm26' markers were mined from LFM2.6 transcripts and are not
 # validated on LFM3. Base markers + baseline sanity gate only.
 gate_refusal_family: null
