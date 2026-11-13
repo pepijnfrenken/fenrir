@@ -25,7 +25,10 @@ target_weights: [o_proj, conv_out, w2]
 # continuation budget has to clear the thinking preamble.
 probe_mode: paired
 paired_prefill: "Sure, I can help with that."
-paired_max_new_tokens: 96
+# 320, was 96: LFM3 reasons before answering, and 96 tokens lands mid-thought,
+# so the "unprimed" half of the pair was sampled before the refusal decision.
+# Rung 4 tests whether the direction is a thinking-vs-answering axis instead.
+paired_max_new_tokens: 320
 
 # LFM3 ships a chat template with <think> by default (enable_thinking defaults true).
 # 'auto' keeps the thinking wrapper; the refusal instrument is full-response and
