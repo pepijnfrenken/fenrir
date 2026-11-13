@@ -335,3 +335,48 @@ alpha 0.05 = **0.38% |h|**, 0.5 = 3.8% |h|, 2.0 = 15.4% |h|. The inherited LFM2.
 ladder (0.5-3.0) was 4-23% of the residual norm, i.e. destruction by construction.
 The harness now prints this ratio on every `steer-test` and records
 `residual_norm_last_token` in the JSON (`alpha_scale_note`, 1 new test, 118 pass).
+
+---
+
+## Rung 7 — pre-registration: measure a public build, and recover its edit
+
+Six rungs of guessing a global alpha exhausted the from-scratch path. The Hub
+advertises builds of this exact model that report far better trade-offs, so the
+next move is forensic rather than another ladder: **do those builds work under
+our instruments, and what is their edit made of?**
+
+Disclosed parameters, `MihaiPopa-1/LFM3-1.7B-Heretic-Max` (Heretic v1.4.0):
+
+| parameter | value |
+|---|---|
+| direction_index | 11.53 (fractional — a blend of neighbouring layer directions) |
+| attn.o_proj | min 1.19, max 1.49, peak at layer 14.92, reach 13.28 |
+| mlp.down_proj | min 1.09, max 1.23, peak at layer 17.78, reach 11.61 |
+| reported KL | 0.0040 |
+| reported refusals | 6/100 (base 93/100) |
+
+That is a **per-layer tent profile over `o_proj` and `w2` only**. No `conv_out`.
+No single global alpha. Heretic searches (Optuna TPE) over exactly the
+parameterisation this campaign hand-swept: a dose profile, a fractional
+direction, and a KL budget as a scored objective instead of a pass/fail gate.
+
+Hypotheses and falsifiers, written before the run:
+
+1. **H1 (measurement).** The public refusal number is real under a style-aware
+   detector. *Falsifier:* if the build reads 12/12 refused on the held-out split
+   at a 1024-token window, then 6/100 was keyword-measured, the published number
+   is not a target, and our NEGATIVE is the honest state of the art for LFM3.
+2. **H2 (structure).** The edit is higher-rank than a rank-1 projection.
+   *Falsifier:* if `rank1_frac` ≈ 1.0 per tensor with rel_change an order of
+   magnitude below ours, the win is dose calibration, not method — and the
+   campaign's failure was entirely the unit error already identified in rung 6.
+3. **H3 (cost).** Row-norm preservation is why the public build keeps capability.
+   *Falsifier:* if row norms drift as far as ours did, preservation is not the
+   mechanism.
+
+Arms: A) gate the public build with `collect` on the 12-prompt split, then judge
+every generation blind (REFUSE / ANSWER / GARBLED); B) `diff_public.py` against
+base for both the Heretic build and `Austriani/LFM3-1.7B-ARA-Abliterated`
+(reported KL 0.0374, arbitrary-rank/L-BFGS). No weight edits on our side.
+Nothing is deleted; the public weights land in `public/` (~7 GB) and the run is
+read-only against base.

@@ -39,3 +39,7 @@ campaigns/**/hf-upload/model.safetensors
 # (preview Interfaces ToS §1(v) — no publishing performance info without OK)
 campaigns/jev-lane/results/
 campaigns/jev-lane/lens/out/
+
+# downloaded model weights: never tracked
+.forensics/
+campaigns/*/public/
