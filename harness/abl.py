@@ -791,6 +791,54 @@ def cmd_collect(config_path: str, model_dir: str | None, transcript: bool,
 # steer-test — alpha-response curve, no model re-save (steering hooks)
 # --------------------------------------------------------------------------- #
 
+def alpha_scale_note(alphas: list[float], hidden_norm: float | None) -> str:
+    """Express steering alphas as a percentage of the residual-stream norm.
+
+    Alpha is applied in ABSOLUTE hidden-state units (sweep._apply_steering
+    normalises the direction and adds ``-d * alpha``), so the same number means
+    wildly different things across architectures: on LFM3-1.7B the mean
+    last-token residual norm at L23 is ~13.0, which makes alpha 0.05 a 0.38%
+    perturbation and alpha 2.0 a 15.4% one. A campaign that inherited an LFM2.5
+    alpha ladder (0.5..3) therefore measured pure destruction for six rungs and
+    reported "the direction collapses the model at both signs" when the truth
+    was "any perturbation above ~4% of |h| destroys this model".
+
+    Printing the ratio is not cosmetic: it is the only way an operator can tell
+    a direction effect from a dose effect before running the grid.
+    """
+    if hidden_norm is None or hidden_norm <= 0:
+        return "alpha unit: absolute hidden-state units (residual norm not measured)"
+    parts = [f"{a:g}={100.0 * a / hidden_norm:.2f}%|h|" for a in alphas]
+    return (f"alpha unit: mean last-token |h|={hidden_norm:.2f} -> " + ", ".join(parts))
+
+
+def _measure_last_token_norm(model: Any, tok: Any, layer: Any, prompt: str) -> float | None:
+    """Mean last-token residual norm at one layer, over a short forward pass."""
+    import torch
+    from verify import _model_device
+    got: list[float] = []
+
+    def _hook(_m, _a, out):
+        o = out[0] if isinstance(out, tuple) else out
+        if o.dim() == 3:
+            got.append(float(o[0, -1, :].float().norm()))
+
+    h = layer.register_forward_hook(_hook)
+    try:
+        inp = tok(prompt, return_tensors="pt", truncation=True, max_length=512)
+        inp = {k: v.to(_model_device(model)) for k, v in inp.items()}
+        with torch.no_grad():
+            model(**inp)
+    except Exception:  # noqa: BLE001
+        return None
+    finally:
+        try:
+            h.remove()
+        except Exception:  # noqa: BLE001
+            pass
+    return got[-1] if got else None
+
+
 def _steer_causality(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """PRE-EDIT causality verdict from steer-test rows (alpha 0 first).
 
@@ -945,6 +993,25 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
     print(f"steer-test: {len(dirs)} directions ({dm}, flavor={flavor}, n={n_dir}), "
           f"target layers {target_layers}")
 
+    # How big is the perturbation, really? alpha is in absolute hidden-state
+    # units, so print each alpha as a fraction of the mean last-token |h| at the
+    # top target layer. Without this an inherited alpha ladder looks like a
+    # direction finding when it is a dose finding (lfm3-1.7b rungs 1-6).
+    h_norm = None
+    _layerlist = list(layers or [])
+    if target_layers and _layerlist:
+        _top = target_layers[-1]
+        if _top < len(_layerlist):
+            h_norm = _measure_last_token_norm(model, tok, _layerlist[_top], h_dir[0])
+            _asked = []
+            for _a in alphas_spec.split(","):
+                try:
+                    _asked.append(float(_a.strip()))
+                except ValueError:
+                    pass
+            print(f"steer-test: residual scale at L{_top}: "
+                  f"{alpha_scale_note(_asked, h_norm)}")
+
     # ---- alpha grid ----
     try:
         alphas = [float(a.strip()) for a in alphas_spec.split(",") if a.strip()]
@@ -1087,6 +1154,7 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
         "n_directions": n_dir, "directions_source": directions_source,
         "hook_targets": hook_targets,
         "max_new_tokens": max_new_gen, "refusal_detector": "refusal_detect.judge",
+        "residual_norm_last_token": h_norm,
         "baseline_refusals": baseline_refusals, "n_test_prompts": len(test_pairs),
         "causal": causal, "effect_alphas": effect_alphas, "verdict": verdict,
         "separation_scores": {str(k): v for k, v in scores.items()},

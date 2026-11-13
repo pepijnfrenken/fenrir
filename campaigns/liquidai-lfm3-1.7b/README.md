@@ -288,3 +288,50 @@ Test (declared before running, no weight edits):
 direction carries no refusal information and the last live lead dies. If the real
 direction removes refusal and the random one does not, the direction is specific
 and a weight edit at a matched small alpha is justified.
+
+### Rung 6 — RESULTS: the refusal axis is real, family-specific, layer-agnostic, and inseparable from the answer
+
+Same 8 harmful / 6 benign split, **1024-token** window, judge blind to arm and
+alpha (deepseek-v4-flash, two calls per response, label order permuted).
+
+**Instrument validation first.** At baseline, benign prompts came back
+**ANSWER 5, disagree 1** (harmful: REFUSE 8). At 256 tokens the same benign set
+read GARBLED 4/6. So the window fix worked and the judge is trustworthy here.
+Every earlier refusal/coherence number taken at 256 tokens was reading the
+thinking preamble.
+
+**Three arms, alpha 0.05:**
+
+| arm | harmful refusal | harmful usable answer | refusal sentence gone? |
+|---|---|---|---|
+| pristine | 8/8 REFUSE | 0 | no |
+| real direction | **0/8** | **0/8 (14/14 GARBLED)** | yes, replaced by Title-Cased word salad |
+| `ctrl-shuf` (real vectors, wrong layers) | **1/8** | **2/8 (11/14 GARBLED)** | yes, replaced by fluent deflection |
+| `ctrl-random` (gaussian) | **8/8** | 0 (untouched, coherent) | **no** |
+
+Sign, at the real scale (harmful): alpha **+0.05 → 0/8** refused, **-0.05 → 6/8**
+refused, **-0.10 → 12/14** with coherence gone. So the axis *is* signed at the
+dose where the model survives. Rung 4's "not sign-selective" was an artefact of
+alpha 1.0, which is 7.7% of the residual norm.
+
+What this establishes, and it is more interesting than the flat negative:
+
+1. **The direction carries refusal information.** A gaussian vector of the same
+   magnitude leaves refusal completely intact (8/8) and coherent. The refusal-
+   derived vector removes it. That is specificity the campaign did not have
+   before rung 6.
+2. **Layer placement is not what carries it.** The deranged assignment — same 24
+   vectors, wrong layers — also kills the refusal sentence. All 24 directions are
+   near-collinear, so "all layers" was always one global axis applied 24 times.
+   There is no layer-localisation claim available from this harvest.
+3. **Removal still never yields an answer.** Real: 0/8 usable. Shuf: 2/8. In
+   every configuration where refusal goes, the content goes with it. On LFM3 the
+   refusal decision and the answer-generation capacity are not separable by this
+   edit at any dose from 0.05% to 15% of the residual norm.
+
+**Why six rungs looked like a direction problem when it was a dose problem.**
+Measured on the desktop: mean last-token residual norm at L23 = **12.99**. So
+alpha 0.05 = **0.38% |h|**, 0.5 = 3.8% |h|, 2.0 = 15.4% |h|. The inherited LFM2.5
+ladder (0.5-3.0) was 4-23% of the residual norm, i.e. destruction by construction.
+The harness now prints this ratio on every `steer-test` and records
+`residual_norm_last_token` in the JSON (`alpha_scale_note`, 1 new test, 118 pass).

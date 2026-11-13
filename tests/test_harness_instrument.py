@@ -182,3 +182,18 @@ def test_steer_causality_keeps_a_coherent_effect_alongside_a_collapse():
     assert v["causal"] is True
     assert v["effect_alphas"] == [2.0]
     assert v["collapse_alphas"] == [-1.0]
+
+
+def test_alpha_scale_note_reports_dose_as_a_fraction_of_residual_norm():
+    """An alpha is absolute hidden-state units; without the ratio an inherited
+    ladder reads as a direction finding when it is a dose finding."""
+    from harness.abl import alpha_scale_note
+
+    note = alpha_scale_note([0.05, 2.0], 12.988)
+    assert "0.38%|h|" in note
+    assert "15.40%|h|" in note
+    assert "12.99" in note
+
+    # A missing measurement must say so rather than print a fake ratio.
+    assert "not measured" in alpha_scale_note([0.5], None)
+    assert "not measured" in alpha_scale_note([0.5], 0.0)
