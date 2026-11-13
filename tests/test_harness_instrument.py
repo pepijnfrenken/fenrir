@@ -154,3 +154,31 @@ def test_steer_causality_ignores_worse_alphas():
     """A direction that INCREASES refusal is not causal."""
     v = _steer_causality([_row(0, 2), _row(1.0, 5), _row(2.0, 4)])
     assert v["causal"] is False
+
+
+def _collapsed_row(alpha: float, refusals: int) -> dict:
+    return {"alpha": alpha, "refusal_count": refusals, "n_prompts": 12,
+            "collapse": True, "coherent_count": 2, "coherent": "2/12"}
+
+
+def test_steer_causality_rejects_refusal_drops_that_came_from_collapse():
+    """LFM3-1.7B: alpha -1 answered 'disallowed disallowed ...' to 12/12.
+
+    The refusal count fell 12 -> 0 because the model stopped producing
+    sentences, not because it complied. That must never read as causal.
+    """
+    v = _steer_causality([_row(0, 12, 12), _collapsed_row(-1.0, 0),
+                          _collapsed_row(1.0, 0)])
+    assert v["causal"] is False
+    assert v["effect_alphas"] == []
+    assert v["collapse_alphas"] == [-1.0, 1.0]
+    assert "COLLAPSED" in v["verdict"]
+
+
+def test_steer_causality_keeps_a_coherent_effect_alongside_a_collapse():
+    v = _steer_causality([_row(0, 12, 12), _collapsed_row(-1.0, 0),
+                          {"alpha": 2.0, "refusal_count": 3, "n_prompts": 12,
+                           "collapse": False}])
+    assert v["causal"] is True
+    assert v["effect_alphas"] == [2.0]
+    assert v["collapse_alphas"] == [-1.0]

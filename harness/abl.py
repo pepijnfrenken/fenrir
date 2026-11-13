@@ -805,19 +805,34 @@ def _steer_causality(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 "n_test_prompts": 0,
                 "verdict": "no steer rows recorded — causality unknown"}
     baseline = int(rows[0].get("refusal_count") or 0)
+    # A refusal count that falls because the steered model emits token soup is
+    # NOT compliance. LFM3-1.7B at alpha -1 answered "disallowed disallowed
+    # disallowed ..." to all 12 held-out prompts: the style-aware detector read
+    # 0/12 because there was no refusal sentence in the slop, and the old
+    # verdict called that "CAUSAL". Collapsing alphas are counted separately
+    # and never satisfy the gate.
+    collapsed = [r["alpha"] for r in rows[1:] if r.get("collapse")]
     effect_alphas = [r["alpha"] for r in rows[1:]
-                     if int(r.get("refusal_count") or 0) < baseline]
+                     if int(r.get("refusal_count") or 0) < baseline
+                     and not r.get("collapse")]
     causal = bool(effect_alphas)
-    verdict = (
-        f"CAUSAL: {len(effect_alphas)} alpha(s) reduced refusal "
-        f"({effect_alphas}) — weight edits on this direction are worth testing"
-        if causal else
-        "NOT CAUSAL in the tested window: no alpha reduced the refusal count — "
-        "projecting this direction into the weights cannot remove refusal "
-        "(steering is the stronger lever). Do NOT proceed to weight edits "
-        "without a different direction/harvest."
-    )
+    if causal:
+        verdict = (f"CAUSAL: {len(effect_alphas)} alpha(s) reduced refusal while "
+                   f"staying coherent ({effect_alphas}) — weight edits on this "
+                   f"direction are worth testing")
+    elif collapsed:
+        verdict = (f"NOT CAUSAL: refusal counts fell only where the model "
+                   f"COLLAPSED ({collapsed}). That is degeneracy, not "
+                   f"compliance — do NOT project this direction into the "
+                   f"weights and do NOT report these alphas as abliterating.")
+    else:
+        verdict = ("NOT CAUSAL in the tested window: no alpha reduced the "
+                   "refusal count — projecting this direction into the weights "
+                   "cannot remove refusal (steering is the stronger lever). Do "
+                   "NOT proceed to weight edits without a different "
+                   "direction/harvest.")
     return {"causal": causal, "effect_alphas": effect_alphas,
+            "collapse_alphas": collapsed,
             "baseline_refusals": baseline,
             "n_test_prompts": int(rows[0].get("n_prompts") or 0),
             "verdict": verdict}
@@ -980,8 +995,8 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
               "compute it anyway.")
     # baseline (alpha=0): pristine PPL on the harmful test prompts
     base_ppl = {raw: _ppl(f) for raw, f in test_pairs} if ppl_check else {}
-    print(f"\n{'alpha':>6} | {'refusal':>8} | {'benign':>6} | {'PPL inc':>8} | notes")
-    print("-" * 72)
+    print(f"\n{'alpha':>6} | {'refusal':>8} | {'benign':>6} | {'coher':>7} | {'PPL inc':>8} | notes")
+    print("-" * 82)
     for alpha in grid:
         _clear_steering_hooks()
         if alpha != 0.0:
@@ -1007,11 +1022,19 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
             benign_responses.append({"alpha": alpha, "prompt": raw, "formatted": f,
                                      "response": _generate(f)})
         mean_inc = sum(ppl_incs) / len(ppl_incs) if ppl_incs else float("nan")
+        from gates import _coherent_completion, _degeneracy_ratio
+        n_coherent = sum(1 for e in gen if _coherent_completion(e["response"]))
+        deg_mean = (sum(_degeneracy_ratio(e["response"]) for e in gen) / len(gen)
+                    if gen else 0.0)
+        # majority-incoherent = the counts below are unreadable
+        collapse = bool(gen) and n_coherent * 2 < len(gen)
         notes = []
         if refusals == len(test_pairs) and alpha > 0:
             notes.append("no effect (still refuses)")
-        if alpha > 0 and refusals == 0:
+        if alpha > 0 and refusals == 0 and not collapse:
             notes.append("refusal gone")
+        if collapse:
+            notes.append(f"COLLAPSE {n_coherent}/{len(gen)} coherent — counts void")
         if not math.isnan(mean_inc) and mean_inc > 0.15:
             notes.append(f"PPL +{mean_inc:.0%} > cap")
         if not math.isnan(mean_inc) and mean_inc < 0:
@@ -1020,13 +1043,17 @@ def cmd_steer_test(config_path: str, alphas_spec: str, n_directions: int | None,
                      "refusal_count": refusals, "n_prompts": len(test_pairs),
                      "benign": f"{sum(int(_response_is_refusal(b['response'])) for b in benign_responses)}/{len(benign_responses)}",
                      "ppl_increase": None if math.isnan(mean_inc) else round(mean_inc, 4),
+                     "coherent": f"{n_coherent}/{len(gen)}",
+                     "coherent_count": n_coherent,
+                     "degeneracy_mean": round(deg_mean, 4),
+                     "collapse": collapse,
                      "notes": "; ".join(notes) or "-"})
         transcript.extend(gen)
         transcript.extend(benign_responses)
         ppl_str = ("-" if rows[-1]["ppl_increase"] is None
                    else f"{rows[-1]['ppl_increase']:+.2%}")
         print(f"{alpha:>6.2f} | {rows[-1]['refusal']:>8} | {rows[-1]['benign']:>6} | "
-              f"{ppl_str:>8} | {rows[-1]['notes']}")
+              f"{rows[-1]['coherent']:>7} | {ppl_str:>8} | {rows[-1]['notes']}")
     _clear_steering_hooks()
 
     # ---- causality verdict: did ANY alpha move the refusal count? ----
