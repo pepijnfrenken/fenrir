@@ -380,3 +380,46 @@ base for both the Heretic build and `Austriani/LFM3-1.7B-ARA-Abliterated`
 (reported KL 0.0374, arbitrary-rank/L-BFGS). No weight edits on our side.
 Nothing is deleted; the public weights land in `public/` (~7 GB) and the run is
 read-only against base.
+
+## Rung 8 — pre-registration: reproduce the published recipe, judge it here
+
+Rung 7 asked whether a public build survives our gates. Rung 8 asks the causal
+question that follows from the forensics: the ARA build's deltas are rank 2.3-11.3
+at 4-14% rel_change on `o_proj` and `w2` in layers 12-19 and 22 — **the same dose
+family as our alpha 2.0 edit that collapsed the model at rank 1**. So dose is not
+what separates them. Heretic's plain abliteration, however, is rank-1 by
+construction (`dW = -lambda v (v^T W)` with row-magnitude restoration), so a
+rank-1 build reporting KL 0.0040 at 6/100 refusals cannot differ from ours by
+rank either. What remains is the **direction source**:
+
+| | ours (rungs 1-6) | heretic |
+|---|---|---|
+| prompts | 11 harmful, paired with an affirmative prefill | 400 harmful vs 400 harmless, disjoint |
+| position | mean over ALL response tokens, thinking preamble included | the FIRST GENERATED token only |
+| orthogonalisation | none | direction orthogonalised against the mean harmless direction |
+| per-layer vs global | 24 per-layer directions | one global direction = lerp(L11, L12, 0.53) |
+| dose | global alpha swept by hand | tent profile per component, searched |
+
+`reproduce_heretic.py` reimplements that harvest from the package source, applies
+the disclosed lambda profile, and gates the result with our instruments. It is a
+reproduction of published parameters, not an import of a published checkpoint:
+the weights are ours, produced on this box, and the verdict is ours.
+
+Falsifiers, before any number exists:
+
+- **F1** cos(heretic global direction, our paired per-layer direction) — if
+  < 0.5 the two harvests are different objects and six rungs measured a
+  different axis; if > 0.8 the direction source is not the explanation and the
+  remaining suspects are the component set (`conv_out` included here, excluded
+  there) and row-magnitude restoration.
+- **F2** the reproduction must read first-token KL ≤ 0.05 nats on our meter and
+  ≤ 2/12 refusals with the judge calling the majority ANSWER. If it does, the
+  published recipe transfers and the campaign's NEGATIVE is superseded by a
+  working checkpoint.
+- **F3** if our meter reads KL ≥ 0.5 at the disclosed lambda, the published
+  KL 0.0040 is not reproducible under this protocol and cannot be used as a
+  target by anyone.
+
+`judge_transcript.py` is added for this rung because the steer-test judge reads a
+different schema; same three labels, same label-order permutation, disagreement
+reported. Refusal count alone has already certified slop once in this campaign.
