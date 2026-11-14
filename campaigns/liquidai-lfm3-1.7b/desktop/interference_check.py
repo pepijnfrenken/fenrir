@@ -118,4 +118,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # run by path: put the repo root on sys.path so `prompts`/`gate`-family
+    # imports resolve the way they do for harness/abl.py
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
     sys.exit(main())

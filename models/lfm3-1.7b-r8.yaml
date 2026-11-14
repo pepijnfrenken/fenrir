@@ -1,0 +1,33 @@
+# Our own reproduction of the published heretic recipe, gated with 4096 tokens so
+# the thinking block can close (rung 7b proved 1024 truncates every response).
+# n_interference_prompts is set, so PPL/KL are measured on the harmless pool and
+# eval_pass can actually be green.
+model_id: LiquidAI/LFM3-1.7B
+model_arch: dense
+dtype: bfloat16
+device: auto
+trust_remote_code: true
+
+method: mpoa
+dir_method: paired
+n_directions: 3
+alpha: 2.0
+passes: 1
+
+target_layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+target_weights: [o_proj, conv_out, w2]
+
+n_test_prompts: 12
+n_interference_prompts: 20
+gate_require_harmless_interference: true
+gate_refusal_max: 0.03
+gate_refusal_max_new_tokens: 4096
+gate_refusal_family: null
+gate_kl_max: 0.1
+gate_capability_min: 0.83
+gate_coherence_min: 0.9
+gate_degeneracy_max: 0.05
+gate_ppl_increase_max: 0.15
+
+max_seq_len: 4096
+prompt_flavor: chat
