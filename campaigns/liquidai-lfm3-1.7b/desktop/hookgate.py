@@ -94,6 +94,10 @@ def main() -> int:
     ap.add_argument("--out", default="/out/r10/hookgate.json")
     ap.add_argument("--max-new", type=int, default=0)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    ap.add_argument("--only", default="", choices=["", "hook", "base"],
+                    help="generate a single arm; default both")
+    ap.add_argument("--base-from", default="",
+                    help="reuse the base arm from an earlier hookgate.json")
     a = ap.parse_args()
 
     from config import load_config
@@ -114,7 +118,13 @@ def main() -> int:
                                                  trust_remote_code=True).to(dev).eval()
 
     gens = []
-    for arm in ("base", "hook"):
+    arms = (a.only,) if a.only else ("base", "hook")
+    if "base" not in arms and a.base_from:
+        prev = json.loads(Path(a.base_from).read_text())
+        reused = [g for g in prev["generations"] if g.get("arm") == "base"]
+        gens.extend(reused)
+        print(f"reused {len(reused)} base generations from {a.base_from}")
+    for arm in arms:
         print(f"arm {arm} ...", flush=True)
         texts = generate(model, tok, prompts, dev, max_new,
                          dirs=None if arm == "base" else dirs, strength=a.strength)

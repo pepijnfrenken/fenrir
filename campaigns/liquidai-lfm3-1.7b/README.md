@@ -687,3 +687,50 @@ Falsifier declared before any number exists:
 
 Artifacts: `/out/r10/hookgate.json` on the Modal volume, labelled on the hub with
 `desktop/judge_transcript.py` (deepseek-v4-flash, two permuted calls).
+
+## Rung 10 result — the direction is causal but not survivable (F1 FAILS)
+
+Hook-time removal of our paired direction at all 48 post-norm places, strength 1.0,
+12 held-out prompts, 4096 window, base arm regenerated in the same container
+(`/out/r10/hookgate.json`, 1261 s, L4).
+
+| arm | REFUSE | ANSWER | GARBLED | agree | mean chars |
+|---|---|---|---|---|---|
+| base | 12/12 (both orders) | 0 | 0 | 12/12 | 1365 |
+| hook s=1.0 | 0 | 2-3 | 9-10 | 11/12 | 8153 |
+
+The base arm is the clean one this time: 12/12 refusals detected, so the detector and
+the window are not the problem. The hook arm removes every refusal and then does not
+stop talking — 4,146 to 12,680 chars, ending mid-sentence. Declared F1 needed >= 8
+ANSWER and <= 2 GARBLED; 2-3 ANSWER fails it.
+
+Reading: the direction carries refusal information (baseline refuses 12/12, removal
+kills the refusal) and is not the refusal axis in a usable form (removal also destroys
+the generation). This is the same shape as rung 6, now at the endpoint that needs no
+gamma algebra, so it is not a bake artefact.
+
+## Rung 11 — separate the two remaining suspects (pre-registered, running)
+
+Rung 10 leaves (a) dose too high at this endpoint and (b) our harvest method wrong,
+indistinguishable. Four arms, same prompts, same window, base reused from rung 10:
+
+| arm | direction | strength |
+|---|---|---|
+| ours-0.6 | rung-9 paired, 48 places | 0.6 |
+| ours-0.4 | rung-9 paired, 48 places | 0.4 |
+| rsalone-1.0 | top left singular vector of rSalone's published weight deltas, 48 places | 1.0 |
+| heretic-1.0 | same construction from Heretic-Max's published deltas, 39 places | 1.0 |
+
+The public directions are theirs, recovered from their weights by
+`desktop/dirs_from_diff.py`; removing a 1-D subspace is identical for `u` and `-u`, so
+no sign calibration is needed.
+
+Falsifier: a direction is usable iff the blind judge returns >= 8 ANSWER of 12 with
+<= 2 GARBLED.
+
+- If a **public** direction is clean where ours garbles, the defect is the harvest and
+  the rung-9 paired method is the thing to replace.
+- If **no** arm is clean, the hook endpoint is wrong for this architecture and the
+  question returns to weight space with a different shape.
+- If **ours at a lower dose** is clean, the direction was right and 1.0 was simply past
+  the survivable point, which also means the rung-5/6 ladder was read at the wrong dose.
