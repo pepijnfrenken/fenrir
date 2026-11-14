@@ -85,6 +85,7 @@ def harvest(model, tok, prompts: list[str], device: str) -> dict:
     prompt tokens and "last" is the last prompt token.
     """
     cur: dict[str, torch.Tensor] = {}
+    cur_rms: dict[str, torch.Tensor] = {}
     hooks = []
     for li in range(N_LAYERS):
         layer = model.model.layers[li]
@@ -96,11 +97,16 @@ def harvest(model, tok, prompts: list[str], device: str) -> dict:
 
             def _hook(_m, _i, out, key=key):
                 cur[key] = out.detach()[0].float().clone()
+                # inputs[0] is the pre-norm write; its rms is the scale factor the
+                # baked update needs (W' = W - (1/rms) b (a^T W))
+                x = _i[0].detach()[0].float()
+                cur_rms[key] = x.norm(dim=-1) / (x.shape[-1] ** 0.5)
 
             hooks.append(mod.register_forward_hook(_hook))
 
     mean_acc: dict[str, list[torch.Tensor]] = {}
     last_acc: dict[str, list[torch.Tensor]] = {}
+    rms_acc: dict[str, list[torch.Tensor]] = {}
     try:
         for p in prompts:
             cur.clear()
@@ -109,6 +115,8 @@ def harvest(model, tok, prompts: list[str], device: str) -> dict:
             for key, h in cur.items():
                 mean_acc.setdefault(key, []).append(h.mean(dim=0))
                 last_acc.setdefault(key, []).append(h[-1])
+                if key in cur_rms:
+                    rms_acc.setdefault(key, []).append(cur_rms[key].mean())
     finally:
         for h in hooks:
             h.remove()
@@ -117,7 +125,8 @@ def harvest(model, tok, prompts: list[str], device: str) -> dict:
         raise SystemExit("harvest captured nothing")
     mean = {k: torch.stack(v).mean(dim=0) for k, v in mean_acc.items()}
     last = {k: torch.stack(v).mean(dim=0) for k, v in last_acc.items()}
-    return {"last": last, "mean": mean}
+    rms = {k: float(torch.stack(v).mean()) for k, v in rms_acc.items()}
+    return {"last": last, "mean": mean, "rms": rms}
 
 
 def _direction(bad: torch.Tensor, good: torch.Tensor) -> torch.Tensor:
@@ -173,7 +182,12 @@ def cmd_dir(args) -> int:
                 "rel_dist_from_one": round(float((w - 1).norm() / w.norm()), 4),
             }
 
-    torch.save({"dirs": dirs, "sep": sep, "model_id": MODEL_ID,
+    rms = {k: round((B["rms"].get(k, 1.0) + G["rms"].get(k, 1.0)) / 2, 6) for k in B["rms"]}
+    if rms:
+        vals = list(rms.values())
+        print(f"  pre-norm rms: mean {sum(vals)/len(vals):.3f} "
+              f"min {min(vals):.3f} max {max(vals):.3f}")
+    torch.save({"dirs": dirs, "sep": sep, "model_id": MODEL_ID, "rms": rms,
                 "n_each": args.n_each, "positions": ["last", "mean"]},
                out / "r9-directions.pt")
     (out / "r9-dir-report.json").write_text(json.dumps({
@@ -204,6 +218,7 @@ def cmd_bake(args) -> int:
     src = Path(args.out_dir) / "r9-directions.pt"
     blob = torch.load(src, map_location="cpu", weights_only=False)
     dirs = blob["dirs"][args.position]
+    rms_tbl = blob.get("rms", {})
     device = args.device
     tok = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(MODEL_ID, dtype=torch.bfloat16,
@@ -224,7 +239,12 @@ def cmd_bake(args) -> int:
             W0 = W.clone().float()
 
             a = gamma * r
-            b = r / gamma.clamp(min=1e-6)
+            # gamma is not near 1 on LFM3 (mean 0.014 at L2), so invert it with a
+            # floor: where the gain is ~0 the channel contributes nothing and a raw
+            # 1/gamma would explode the update.
+            gfloor = 0.05 * gamma.abs().median().clamp(min=1e-6)
+            gsafe = gamma.sign() * gamma.abs().clamp(min=float(gfloor))
+            b = r / gsafe
             s = (a @ b)
             if abs(float(s)) < 1e-6:
                 print(f"  {key}: a.b = {float(s):.2e}; skipping")
@@ -232,11 +252,13 @@ def cmd_bake(args) -> int:
             a = a / s                                   # so that a.b == 1
             # W' = W - lam * b (a^T W)
             upd = torch.outer(b, a @ W)
-            new = (W.float() - args.strength * upd).to(W.dtype)
+            scale = 1.0 / max(float(rms_tbl.get(key, 1.0)), 1e-6)
+            new = (W.float() - args.strength * scale * upd).to(W.dtype)
             proj_mod.weight.data.copy_(new)
             d = (new.float() - W0)
             rows.append({"place": key, "weight": wname,
                          "strength": args.strength,
+                         "rms": round(float(rms_tbl.get(key, 1.0)), 4),
                          "rel_change": round(float(d.norm() / W0.norm().clamp(min=1e-12)), 6),
                          "a_dot_b": round(float(s), 6)})
 

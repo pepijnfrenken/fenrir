@@ -604,3 +604,46 @@ Heretic-Max dose table, for comparison with our bake:
 | conv.out_proj | 11 | 2.56-3.75 % | 0.985 | 1.71 |
 | feed_forward.w2 | 17 | 2.56-3.08 % | 0.999 | 1.24 |
 | self_attn.o_proj | 11 | 2.52-3.48 % | 0.991 | 1.53 |
+
+### Rung 9 result — F1 FAILED, and that is the finding
+
+Measured before any refusal number is admissible:
+
+| quantity | value |
+|---|---|
+| `KL(baked || hooked)` | **5.2258** |
+| `KL(baked || base)` | **5.2357** |
+| **ratio** | **0.998** (pass `< 0.25`, stop `> 0.5`) |
+
+The baked checkpoint is five nats from the hook-time removal *and* five nats from
+the untouched base. It does not reproduce the edit; it wrecks the model. Any
+refusal count from that run is void, and the gate that ran afterwards is recorded
+as void rather than as evidence.
+
+**Diagnosis, from the same run's numbers.** The post-norm gains on LFM3 are tiny,
+not near one: mean `|gamma|` ~ 0.0139 at `L2.operator`, `rel_dist_from_one` up to
+**66.2**. So `b = r/gamma` multiplies the update by ~70, and the term the first
+bake omitted is the residual scale: removing r from the *normalised* branch output
+y = gamma * (x/rms) requires
+
+```
+W' = W - (1/rms) * b (a^T W),   a = gamma*r,  b = r/gamma
+```
+
+The `1/rms(x)` is not cosmetic. Without it the rank-1 term is the size of the row
+it edits, which is exactly the 5-nat damage measured here. With it, the write is
+the size of the direction being removed, which is what the published rel_changes
+(2.5-8.5 %) look like.
+
+**What this means for the campaign.** Our own write has now been wrong twice for
+reasons that had nothing to do with the direction: once symmetric where the
+architecture requires an asymmetric pair, once unscaled where the architecture
+requires a residual-scale factor. Both errors were caught by instruments that can
+fail, not by more alpha. Rung 9b re-bakes with the rms factor, floors gamma before
+inverting it, and stops before the gate if F1 does not clear 0.25.
+
+**And the confound this closes.** With `a = b = v` and no rms term, every earlier
+rung applied a rank-1 subtraction whose size was set almost arbitrarily relative
+to the architecture - which is why "alpha 0.05 = 0.38 % of |h|" destroyed the
+answer while leaving the refusal intact. The dose ladder was tuning a number that
+the implementation was mis-scaling.

@@ -80,6 +80,7 @@ def _run(argv: list[str], env: dict) -> dict:
               volumes={"/out": VOL})
 def run_rung(stages: list[str] | None = None) -> dict:
     stages = stages or ["pristine", "dir", "bake", "check", "gate", "interference"]
+    stages = list(stages)
     env = dict(os.environ)
     env.update({"PYTHONPATH": "/absolver", "ABSOLVER_CAMPAIGNS_ROOT": "/out",
                 "HF_HOME": "/out/hf", "HF_HUB_DISABLE_PROGRESS_BARS": "1"})
@@ -118,6 +119,17 @@ def run_rung(stages: list[str] | None = None) -> dict:
             VOL.commit()
         else:
             raise SystemExit(f"unknown stage {stage}")
+        if stage == "check":
+            import json
+            f = "/out/r9/r9-faithfulness.json"
+            if os.path.exists(f):
+                ratio = json.load(open(f)).get("ratio")
+                r["f1_ratio"] = ratio
+                print(f"F1 ratio {ratio}  (pass < 0.25, stop > 0.5)")
+                if ratio is not None and ratio > 0.5:
+                    r["returncode"] = 3
+                    print("!! F1 FAILED: the bake is not the edit it claims to be; "
+                          "not gating a model that was destroyed by its own write")
         r["stage"] = stage
         results.append(r)
         print(f"===== {stage}: rc={r['returncode']} in {r.get('elapsed_seconds')}s")
