@@ -195,6 +195,16 @@ class ModelConfig(BaseModel):
     n_verify_prompts: int = 20
     """Number of harmful prompts used in VERIFY refusal-rate check."""
     n_test_prompts: int = 5
+    # Interference gates (perplexity_increase, first_token_kl) measure prompts
+    # whose behaviour must NOT move. Measuring them on the harmful held-out
+    # split makes them antagonistic to the objective: a build that answers every
+    # prompt then scores KL 11.7 nats and fails, while a build that still
+    # refuses passes. Set 0 to fall back to the legacy harmful-prompt protocol.
+    n_interference_prompts: int = 20
+    # Hard stop: a run whose PPL/KL were measured on the harmful split cannot
+    # report eval_pass, whatever the individual gates say. Setting this False is
+    # an explicit, recorded acceptance of the legacy protocol.
+    gate_require_harmless_interference: bool = True
     """Size of the held-out TEST split used by `collect`'s gates (refusal,
     coherence, degeneracy, PPL, KL, capability all report on this split).
     Default 5 for back-compat with earlier campaigns. Raise it when the

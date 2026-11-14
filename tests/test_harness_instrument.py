@@ -197,3 +197,67 @@ def test_alpha_scale_note_reports_dose_as_a_fraction_of_residual_norm():
     # A missing measurement must say so rather than print a fake ratio.
     assert "not measured" in alpha_scale_note([0.5], None)
     assert "not measured" in alpha_scale_note([0.5], 0.0)
+
+
+def test_interference_gates_move_off_the_harmful_split():
+    """Interference (PPL, first-token KL) must not be measured on the prompts
+    whose behaviour is the objective.
+
+    The defect this pins: both gates ran on the held-out HARMFUL split, so a
+    build that answered every prompt scored first-token KL 11.73 nats and
+    failed the gate, while a build that still refused passed it. A damage meter
+    that moves with the effect is not a damage meter.
+    """
+    from gates import interference_prompt_set
+
+    harmful = ["h1", "h2", "h3"]
+    harmless = ["g1", "g2"]
+
+    chosen, label = interference_prompt_set(harmless, harmful)
+    assert chosen == harmless
+    assert "harmless" in label
+
+    # legacy call: still works, but says plainly which set produced the number
+    chosen, label = interference_prompt_set(None, harmful)
+    assert chosen == harmful
+    assert "legacy" in label
+    assert "harmful" in label
+
+
+def test_a_green_run_cannot_rest_on_legacy_interference():
+    """eval_pass must be blocked when PPL/KL were measured on the harmful split.
+
+    Regression for the defect that let a working build read as a failure: the
+    public LFM3 build refused 0/12, answered coherently and gained MMLU, yet
+    scored first-token KL 11.73 nats because KL was measured on the prompts it
+    was supposed to change. Every individual gate may be green; the provenance
+    of the interference numbers decides.
+    """
+    import types
+    from gates import enforce_interference_provenance
+
+    def gates_dict(label):
+        return {
+            "refusal": {"passed": True},
+            "coherence": {"passed": True},
+            "perplexity_increase": {"passed": True, "prompt_set": label},
+            "first_token_kl": {"passed": True, "prompt_set": label},
+        }
+
+    cfg = types.SimpleNamespace()   # default: require harmless interference
+
+    blocked = enforce_interference_provenance(
+        gates_dict("held-out harmful set (legacy protocol)"), cfg, True)
+    assert blocked["eval_pass"] is False
+    assert "harmful split" in blocked["_eval_pass_blocked_by"]
+
+    ok = enforce_interference_provenance(
+        gates_dict("harmless interference set"), cfg, True)
+    assert ok["eval_pass"] is True
+
+    # explicit, recorded opt-out still works — and says so in the bundle
+    opt_out = enforce_interference_provenance(
+        gates_dict("held-out harmful set (legacy protocol)"),
+        types.SimpleNamespace(gate_require_harmless_interference=False), True)
+    assert opt_out["eval_pass"] is True
+    assert opt_out["_legacy_interference_accepted"] is True

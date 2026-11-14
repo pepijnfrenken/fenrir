@@ -641,6 +641,17 @@ def cmd_collect(config_path: str, model_dir: str | None, transcript: bool,
     print(f"held-out test split: {len(held_out)}/{n} pairs "
           f"(train={n_train} tune={n_test} test={n_test}, seed={cfg.eval_split_seed})")
 
+    # Interference pools: harmless prompts, disjoint from the harmful split, used
+    # ONLY by the distribution gates. Behaviour is supposed to change on the
+    # harmful split; interference has to be measured where it must not change.
+    n_int = int(getattr(cfg, "n_interference_prompts", 20) or 0)
+    interference: list[str] = []
+    if n_int > 0:
+        pool = [q for q in g if q not in set(h)]
+        interference = pool[-n_int:] if len(pool) >= n_int else list(pool)
+        print(f"interference set: {len(interference)} harmless prompts "
+              f"(PPL + first-token KL measured here, not on the harmful split)")
+
     # For an ablated model, compute the pristine PPL + first-token-KL
     # baselines FIRST (sequential load: same peak RAM as one model), so the
     # perplexity_increase / first_token_kl gates are REAL instead of the
@@ -660,7 +671,7 @@ def cmd_collect(config_path: str, model_dir: str | None, transcript: bool,
                 print(f"WARNING: pristine mmlu_mini failed: {exc}")
             from verify import _model_device
             pdev = _model_device(pmodel)
-            for p in held_out:
+            for p in held_out + interference:
                 formatted = format_prompt(ptok, p, flavor_r)
                 inp = ptok(formatted, return_tensors="pt", truncation=True,
                            max_length=cfg.max_seq_len).to(pdev)
@@ -679,7 +690,7 @@ def cmd_collect(config_path: str, model_dir: str | None, transcript: bool,
                 chosen = lp.gather(-1, tokens.unsqueeze(-1)).squeeze(-1)
                 ppl = math.exp(-chosen.sum().item() / max(1, chosen.numel()))
                 pristine_logprobs[_digest(p)] = ppl
-            print(f"  pristine baselines on {len(held_out)} held-out prompts OK "
+            print(f"  pristine baselines on {len(held_out)}+{len(interference)} prompts OK "
                   f"(flavor={flavor_r})")
         except Exception as exc:
             print(f"WARNING: pristine baseline collection failed ({exc}); "
@@ -726,6 +737,7 @@ def cmd_collect(config_path: str, model_dir: str | None, transcript: bool,
             print(f"Pristine refusal axis ({pristine_bundle.parent.name}): "
                   f"{pristine_axis['detail']}")
     report = run_gates(model, tok, cfg, prompts=held_out, benchmark_scores=benchmark_scores,
+                       interference_prompts=interference or None,
                        pristine_logprobs=pristine_logprobs or None,
                        pristine_logprobs_first=pristine_logprobs_first or None,
                        pristine_benchmark_scores=pristine_benchmark_scores or None,

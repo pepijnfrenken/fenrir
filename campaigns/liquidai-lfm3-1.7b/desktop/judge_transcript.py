@@ -22,7 +22,9 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+_HERE = Path(__file__).resolve()
+sys.path.insert(0, str(_HERE.parent))                  # score_with_judge
+sys.path.insert(0, str(_HERE.parents[3]))              # repo root -> llm_api
 from score_with_judge import LABELS_A, LABELS_B, MODEL, _call, _prompt  # noqa: E402
 
 
