@@ -141,7 +141,7 @@ def main() -> int:
             # tolerate a bare layer->tensor map too
             ours = blob_ours.get("dirs", blob_ours) if isinstance(blob_ours, dict) else blob_ours
             for li in sorted(ours, key=lambda k: int(k)):
-                d = ours[li]
+                d = ours[li].detach().to("cpu")   # volume tensor was saved on GPU
                 d = d.reshape(-1, d.shape[-1])[0].float()
                 d = d / d.norm().clamp(min=1e-8)
                 cmp_tbl.append({"layer": int(li),
