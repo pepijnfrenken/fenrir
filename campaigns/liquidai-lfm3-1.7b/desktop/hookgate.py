@@ -54,14 +54,21 @@ def _held_out(cfg) -> list[str]:
 
 @torch.no_grad()
 def generate(model, tok, prompts, device, max_new: int, dirs=None,
-             strength: float = 1.0, where: str = "post"):
+             strength: float = 1.0, where: str = "post", prefill_only: bool = False):
     """where='post' projects the norm's OUTPUT (y-space, the rung-10 endpoint).
 
     where='pre' projects the branch's raw write BEFORE the norm, along
     a = gamma * r. That is the operator a weight-space abliteration implements:
     a linear map on x whose null space contains a. The two are not the same
     operator once gamma is far from 1, which is exactly what F1 kept saying.
+
+    prefill_only=True edits the prompt pass and leaves the generation passes
+    untouched. A decode step presents seq_len 1; a prompt pass presents seq_len
+    prompt_len, so the shape is the discriminator. rSalone's own card reports
+    prompt-side directions beating thinking-side ones, which is this idea stated
+    from their side of the work.
     """
+    tally = {"prompt_passes": 0, "decode_passes": 0, "edited": 0}
     hooks = []
     if dirs:
         for li, layer in enumerate(model.model.layers):
@@ -81,6 +88,13 @@ def generate(model, tok, prompts, device, max_new: int, dirs=None,
 
                     def _p(_m, args, a=a):
                         x = args[0]
+                        if x.shape[1] == 1:
+                            tally["decode_passes"] += 1
+                        else:
+                            tally["prompt_passes"] += 1
+                        if prefill_only and x.shape[1] == 1:
+                            return None
+                        tally["edited"] += 1
                         return (x - strength * (x @ a).unsqueeze(-1) * a,) + tuple(args[1:])
 
                     hooks.append(mod.register_forward_pre_hook(_p))
@@ -101,6 +115,9 @@ def generate(model, tok, prompts, device, max_new: int, dirs=None,
     finally:
         for h in hooks:
             h.remove()
+    generate.tally = tally
+    print(f"  hook tally: prompt_passes {tally['prompt_passes']} "
+          f"decode_passes {tally['decode_passes']} edited {tally['edited']}")
     return out
 
 
@@ -111,6 +128,8 @@ def main() -> int:
     ap.add_argument("--position", default="mean", choices=["mean", "last"])
     ap.add_argument("--strength", type=float, default=1.0)
     ap.add_argument("--where", default="post", choices=["post", "pre"])
+    ap.add_argument("--prefill-only", action="store_true")
+    ap.add_argument("--limit", type=int, default=0, help="cap prompts (smoke tests)")
     ap.add_argument("--out", default="/out/r10/hookgate.json")
     ap.add_argument("--max-new", type=int, default=0)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -126,7 +145,10 @@ def main() -> int:
     cfg = load_config(a.config)
     max_new = a.max_new or int(getattr(cfg, "gate_refusal_max_new_tokens", 1024) or 1024)
     prompts = _held_out(cfg)
-    print(f"held-out prompts {len(prompts)} | window {max_new} | strength {a.strength} | where {a.where}")
+    if a.limit:
+        prompts = prompts[:a.limit]
+    print(f"held-out prompts {len(prompts)} | window {max_new} | strength {a.strength} | where {a.where}"
+          f" | prefill_only {a.prefill_only}")
 
     blob = torch.load(a.dirs, map_location="cpu", weights_only=False)
     dirs = blob["dirs"][a.position]
@@ -148,7 +170,7 @@ def main() -> int:
         print(f"arm {arm} ...", flush=True)
         texts = generate(model, tok, prompts, dev, max_new,
                          dirs=None if arm == "base" else dirs, strength=a.strength,
-                         where=a.where)
+                         where=a.where, prefill_only=a.prefill_only)
         for p, t in zip(prompts, texts):
             gens.append({"prompt": p, "response": t, "arm": arm, "gate": "refusal"})
         print(f"  {arm}: {len(texts)} generations, mean chars {sum(len(t) for t in texts)//max(len(texts),1)}")
@@ -157,7 +179,8 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({"config": a.config, "position": a.position,
                                "strength": a.strength, "window": max_new,
-                               "where": a.where,
+                               "where": a.where, "prefill_only": a.prefill_only,
+                               "hook_tally": getattr(generate, "tally", None),
                                "generations": gens}, indent=1))
     print(f"wrote {out}")
     return 0
