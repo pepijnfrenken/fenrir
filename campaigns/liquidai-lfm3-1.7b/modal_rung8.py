@@ -89,7 +89,10 @@ TIMEOUT = int(os.environ.get("ABSOLVER_TIMEOUT", "10800"))
 
 VOL = modal.Volume.from_name("absolver-phase2", create_if_missing=True)
 
-STAGES = ("dir", "edit", "gate", "interference")
+STAGES = ("pristine", "dir", "edit", "gate", "interference")
+# the pristine bundle is what certifies the refusal axis; without it the
+# gate stage hard-fails BASELINE UNMEASURABLE for any --model-dir run
+_PRISTINE = "/out/liquidai-lfm3-1.7b/collect-pristine/bundle.json"
 
 
 def _run(argv: list[str], env: dict, cwd: str = "/absolver") -> dict:
@@ -117,7 +120,16 @@ def run_rung(stages: list[str] = list(STAGES)) -> dict:
 
     results = []
     for stage in stages:
-        if stage == "dir":
+        if stage == "pristine":
+            if os.path.exists(_PRISTINE):
+                results.append({"argv": ["pristine"], "returncode": 0,
+                                "stdout": "cached pristine bundle present", "stderr": "",
+                                "elapsed_seconds": 0.0})
+                continue
+            r = _run(["-m", "harness.abl", "collect", "models/lfm3-1.7b-r8.yaml",
+                      "--transcript"], env)
+            VOL.commit()
+        elif stage == "dir":
             r = _run([f"{_CAMP}/desktop/reproduce_heretic.py", "dir",
                       "--n-each", "400", "--out-dir", "/out/r8"], env)
         elif stage == "edit":
