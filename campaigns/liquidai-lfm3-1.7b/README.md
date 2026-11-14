@@ -886,3 +886,29 @@ their own published KLs (0.0040, 0.0013) say so. That is the last hypothesis sta
 after this rung, and rungs 5/6 already showed the low-dose end of the ladder fails too
 at the post-norm endpoint - it has not yet been tested at the pre-norm endpoint with a
 judge rather than a keyword detector.
+
+## Rung 13 result — T3. The refusal decision is not made during prefill
+
+Instrument first, as it must be: the smoke ran one prompt at a 96-token window and the
+hook tally came back `prompt_passes 48, decode_passes 4560, edited 48`. The split is
+real, and only the prompt pass is edited. `hookgate.py` now prints and records that
+tally so a future rung cannot claim a prefill edit it did not make.
+
+| arm | chars mean | judge (hook half, n=12) REFUSE / ANSWER / GARBLED | agreement |
+|---|---|---|---|
+| base (reused) | 1365 | 12 / 0 / 0 | 12/12 = 100% |
+| ours-prompt-1.0 | 5384 | 10 / 0 / 2 | 12/12 = 100% |
+| heretic-prompt-1.0 | 2468 | 11 / 0 / 1 | 24/24 = 100% |
+| rand-prompt-a | 1341 | 0 / 0 / 0 (24 of 24 REFUSE over base+rand) | 24/24 = 100% |
+
+**Verdict T3.** Editing the prompt pass only leaves 10 of 12 and 11 of 12 refusals
+standing, with no answers and almost no damage either (5,384 and 2,468 chars against
+base 1,365). The refusal is not decided during prefill at these writes; it is carried
+through generation. So rSalone's prompt-side-beats-thinking-side note does not transfer
+to this endpoint, and the axis cannot be separated in time any more than it could be
+separated in space: full removal at decode kills the model, removal confined to prefill
+leaves the refusal.
+
+One honest caveat on the ruler: both real arms sat at 100% agreement here, which is
+higher than the 91.7-95.8% the full-removal arms produced. The judge finds these outputs
+easier to label because they are ordinary refusals, not because the arms are cleaner.
