@@ -53,7 +53,15 @@ def _held_out(cfg) -> list[str]:
 
 
 @torch.no_grad()
-def generate(model, tok, prompts, device, max_new: int, dirs=None, strength: float = 1.0):
+def generate(model, tok, prompts, device, max_new: int, dirs=None,
+             strength: float = 1.0, where: str = "post"):
+    """where='post' projects the norm's OUTPUT (y-space, the rung-10 endpoint).
+
+    where='pre' projects the branch's raw write BEFORE the norm, along
+    a = gamma * r. That is the operator a weight-space abliteration implements:
+    a linear map on x whose null space contains a. The two are not the same
+    operator once gamma is far from 1, which is exactly what F1 kept saying.
+    """
     hooks = []
     if dirs:
         for li, layer in enumerate(model.model.layers):
@@ -66,10 +74,21 @@ def generate(model, tok, prompts, device, max_new: int, dirs=None, strength: flo
                 if mod is None:
                     continue
 
-                def _h(_m, _i, out, r=r):
-                    return out - strength * (out @ r).unsqueeze(-1) * r
+                if where == "pre":
+                    g = mod.weight.detach().to(device=device, dtype=torch.float32)
+                    a = (g * r.float())
+                    a = (a / a.norm().clamp(min=1e-8)).to(dtype=torch.bfloat16)
 
-                hooks.append(mod.register_forward_hook(_h))
+                    def _p(_m, args, a=a):
+                        x = args[0]
+                        return (x - strength * (x @ a).unsqueeze(-1) * a,) + tuple(args[1:])
+
+                    hooks.append(mod.register_forward_pre_hook(_p))
+                else:
+                    def _h(_m, _i, out, r=r):
+                        return out - strength * (out @ r).unsqueeze(-1) * r
+
+                    hooks.append(mod.register_forward_hook(_h))
     out = []
     try:
         for p in prompts:
@@ -91,6 +110,7 @@ def main() -> int:
     ap.add_argument("--dirs", default="/out/r9/r9-directions.pt")
     ap.add_argument("--position", default="mean", choices=["mean", "last"])
     ap.add_argument("--strength", type=float, default=1.0)
+    ap.add_argument("--where", default="post", choices=["post", "pre"])
     ap.add_argument("--out", default="/out/r10/hookgate.json")
     ap.add_argument("--max-new", type=int, default=0)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -106,7 +126,7 @@ def main() -> int:
     cfg = load_config(a.config)
     max_new = a.max_new or int(getattr(cfg, "gate_refusal_max_new_tokens", 1024) or 1024)
     prompts = _held_out(cfg)
-    print(f"held-out prompts {len(prompts)} | window {max_new} | strength {a.strength}")
+    print(f"held-out prompts {len(prompts)} | window {max_new} | strength {a.strength} | where {a.where}")
 
     blob = torch.load(a.dirs, map_location="cpu", weights_only=False)
     dirs = blob["dirs"][a.position]
@@ -127,7 +147,8 @@ def main() -> int:
     for arm in arms:
         print(f"arm {arm} ...", flush=True)
         texts = generate(model, tok, prompts, dev, max_new,
-                         dirs=None if arm == "base" else dirs, strength=a.strength)
+                         dirs=None if arm == "base" else dirs, strength=a.strength,
+                         where=a.where)
         for p, t in zip(prompts, texts):
             gens.append({"prompt": p, "response": t, "arm": arm, "gate": "refusal"})
         print(f"  {arm}: {len(texts)} generations, mean chars {sum(len(t) for t in texts)//max(len(texts),1)}")
@@ -136,6 +157,7 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({"config": a.config, "position": a.position,
                                "strength": a.strength, "window": max_new,
+                               "where": a.where,
                                "generations": gens}, indent=1))
     print(f"wrote {out}")
     return 0
