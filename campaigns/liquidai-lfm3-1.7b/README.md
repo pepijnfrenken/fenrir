@@ -1292,3 +1292,30 @@ What ships today: `r22/baked-last-1` on the `absolver-phase2` volume — a 1.7B 
 2 REFUSE / 10 ANSWER / 0 GARBLED on 12 held-out harmful prompts, 0 GARBLED and 12/12 ANSWER on 12
 harmless prompts, at a measured cost of 0.304 nats mean KL at the first answer position. It is a
 working abliterated model with a stated price, not a free one.
+
+## Rung 23 — the optimiser on an axis that works
+
+Rung 18 ran the per-place optimiser once, on the `mean` harvest, and it failed: the gate arm
+produced 0 REFUSE / 0 ANSWER. The optimiser was never wrong as a form — it was pointed at an axis
+that does not remove refusals at any dose. Rung 22 has now measured an axis that does
+(`last`, baked, 2 REFUSE / 10 ANSWER / 0 GARBLED at s = 1.0) and priced it: benign KL 0.304 nats.
+The open question is whether 48 per-place strengths can buy the same refusal removal for less
+harmless drift than one uniform dose.
+
+Objective, unchanged from rung 18 and now on the working axis:
+`refusal_margin + lam * KL(harmless) + l2 * sum(w^2)`, `--position last`, 48 places, 20 harmful and
+20 harmless prompts, both pools excluding the 12 held-out gate prompts.
+
+Pre-registered:
+- **O1** a fit exists with **gate ANSWER >= 8, GARBLED <= 2, REFUSE <= 2 AND benign KL <= 0.10** ->
+  per-place strength is the missing degree of freedom, the artifact is regenerated from the
+  optimised `w`, and that ships.
+- **O2** the fit reaches the refusal bar only at KL > 0.10 -> the trade is not a dosing artefact and
+  not a resolution artefact: it belongs to removing this direction from these writes. The campaign
+  then reports the working model at its measured price and stops repeating the dose sweep.
+- **O3** the optimiser cannot reach the refusal bar at any KL -> the margin proxy has failed on a
+  working axis, which is an instrument defect in the objective and has to be stated as such, not
+  read as a model property.
+
+Cost ceiling: one A10, four model loads, 90 minutes. A10 because three consecutive rung-21 launches
+wedged at zero tasks on L4 and dispatched immediately on A10.
