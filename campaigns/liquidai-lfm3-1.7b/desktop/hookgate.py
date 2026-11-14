@@ -32,9 +32,13 @@ MODEL_ID = "LiquidAI/LFM3-1.7B"
 PLACES = {"operator": "post_operator_norm", "ffn": "post_ffn_norm"}
 
 
-def _encode(tok, prompt: str, device: str):
+def _encode(tok, prompt: str, device: str, thinking: bool = True):
+    # The template's DEFAULT renders a bare "<think>" (thinking ON). Every arm in
+    # rungs 10-15 ran in that regime; both popular public builds score with it OFF,
+    # which renders "<think></think>". Never leave this implicit again.
+    kw = {} if thinking else {"enable_thinking": False}
     enc = tok.apply_chat_template([{"role": "user", "content": prompt}],
-                                  add_generation_prompt=True, return_tensors="pt")
+                                  add_generation_prompt=True, return_tensors="pt", **kw)
     ids = enc["input_ids"] if hasattr(enc, "keys") else enc
     return ids.to(device)
 
@@ -55,7 +59,7 @@ def _held_out(cfg) -> list[str]:
 @torch.no_grad()
 def generate(model, tok, prompts, device, max_new: int, dirs=None,
              strength: float = 1.0, where: str = "post", prefill_only: bool = False,
-             layers: set[int] | None = None):
+             layers: set[int] | None = None, thinking: bool = True):
     """where='post' projects the norm's OUTPUT (y-space, the rung-10 endpoint).
 
     where='pre' projects the branch's raw write BEFORE the norm, along
@@ -109,7 +113,7 @@ def generate(model, tok, prompts, device, max_new: int, dirs=None,
     out = []
     try:
         for p in prompts:
-            ids = _encode(tok, p, device)
+            ids = _encode(tok, p, device, thinking=thinking)
             gen = model.generate(input_ids=ids, max_new_tokens=max_new,
                                  do_sample=False, temperature=None, top_p=None,
                                  pad_token_id=tok.pad_token_id or tok.eos_token_id)
@@ -139,6 +143,10 @@ def main() -> int:
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--only", default="", choices=["", "hook", "base"],
                     help="generate a single arm; default both")
+    ap.add_argument("--model-id", default=MODEL_ID,
+                    help="load a different checkpoint, e.g. a public abliterated build")
+    ap.add_argument("--no-think", action="store_true",
+                    help="render <think></think> (thinking disabled), the regime public cards report in")
     ap.add_argument("--base-from", default="",
                     help="reuse the base arm from an earlier hookgate.json")
     a = ap.parse_args()
@@ -165,17 +173,24 @@ def main() -> int:
     prompts = _held_out(cfg)
     if a.limit:
         prompts = prompts[:a.limit]
+    thinking = not a.no_think
     print(f"held-out prompts {len(prompts)} | window {max_new} | strength {a.strength} | where {a.where}"
-          f" | prefill_only {a.prefill_only}")
+          f" | prefill_only {a.prefill_only} | model {a.model_id} | thinking {thinking}", flush=True)
 
     blob = torch.load(a.dirs, map_location="cpu", weights_only=False)
     dirs = blob["dirs"][a.position]
     print(f"directions: {len(dirs)} places from {a.dirs} ({a.position})")
 
     dev = a.device
-    tok = AutoTokenizer.from_pretrained(MODEL_ID, trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(MODEL_ID, dtype=torch.bfloat16,
+    tok = AutoTokenizer.from_pretrained(a.model_id, trust_remote_code=True)
+    model = AutoModelForCausalLM.from_pretrained(a.model_id, dtype=torch.bfloat16,
                                                  trust_remote_code=True).to(dev).eval()
+
+    tail = tok.apply_chat_template([{"role": "user", "content": "probe"}],
+                                   add_generation_prompt=True, tokenize=False,
+                                   **( {} if thinking else {"enable_thinking": False} ))[-24:]
+    print(f"template tail {tail!r}  (thinking={thinking})", flush=True)
+    assert ("</think>" in tail) == (not thinking), "template regime does not match --no-think"
 
     gens = []
     arms = (a.only,) if a.only else ("base", "hook")
@@ -188,7 +203,8 @@ def main() -> int:
         print(f"arm {arm} ...", flush=True)
         texts = generate(model, tok, prompts, dev, max_new,
                          dirs=None if arm == "base" else dirs, strength=a.strength,
-                         where=a.where, prefill_only=a.prefill_only, layers=layers)
+                         where=a.where, prefill_only=a.prefill_only, layers=layers,
+                         thinking=thinking)
         for p, t in zip(prompts, texts):
             gens.append({"prompt": p, "response": t, "arm": arm, "gate": "refusal"})
         print(f"  {arm}: {len(texts)} generations, mean chars {sum(len(t) for t in texts)//max(len(texts),1)}")
@@ -198,7 +214,8 @@ def main() -> int:
     out.write_text(json.dumps({"config": a.config, "position": a.position,
                                "strength": a.strength, "window": max_new,
                                "where": a.where, "prefill_only": a.prefill_only,
-                               "layers": a.layers,
+                               "layers": a.layers, "model_id": a.model_id,
+                               "thinking": thinking,
                                "hook_tally": getattr(generate, "tally", None),
                                "generations": gens}, indent=1))
     print(f"wrote {out}")
