@@ -136,8 +136,11 @@ def main() -> int:
         cmp_tbl = []
         pp = Path("campaigns/liquidai-lfm3-1.7b/directions-chat-paired-t320.pt")
         if pp.exists():
-            ours = torch.load(pp, map_location="cpu", weights_only=False)
-            for li in sorted(ours):
+            blob_ours = torch.load(pp, map_location="cpu", weights_only=False)
+            # the direction file is {"dirs": {...}, "scores": ..., "model_id": ...};
+            # tolerate a bare layer->tensor map too
+            ours = blob_ours.get("dirs", blob_ours) if isinstance(blob_ours, dict) else blob_ours
+            for li in sorted(ours, key=lambda k: int(k)):
                 d = ours[li]
                 d = d.reshape(-1, d.shape[-1])[0].float()
                 d = d / d.norm().clamp(min=1e-8)
