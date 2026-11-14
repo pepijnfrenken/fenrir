@@ -1319,3 +1319,26 @@ Pre-registered:
 
 Cost ceiling: one A10, four model loads, 90 minutes. A10 because three consecutive rung-21 launches
 wedged at zero tasks on L4 and dispatched immediately on A10.
+
+## Rung 24 — does the published axis cost less?
+
+Rung 20 measured Heretic-Max's recovered axis in the thinking-off regime at thinking-time dose
+1.0: **0 REFUSE / 11 ANSWER / 1 GARBLED**. It has never been baked. Rung 22 priced our own
+`last` axis at 0.304 nats of benign KL for 2 REFUSE / 10 ANSWER. If the published axis reaches the
+same refusal removal for materially less drift, the expensive term is our harvest, not the method,
+and the next campaign starts from their axis instead of ours.
+
+Arms: bake `dirs-heretic.pt` (position `mean`, 39 places) at s = 0.5 and s = 1.0, each verified
+with no hooks, each with benign KL and judged coherence.
+
+Pre-registered:
+- **H1** either heretic bake reaches ANSWER >= 8, GARBLED <= 2 **and** benign KL <= 0.10 -> the
+  artifact ships from the published axis at that dose, and our harvest is recorded as the more
+  expensive object.
+- **H2** both doses clear the refusal bar and both exceed 0.10 nats, with KL at or above our
+  axis at matched ANSWER -> the price is a property of rank-1 removal from these writes, whoever
+  harvested the direction. That closes the axis comparison and leaves only the multi-rank form.
+- **H3** heretic's KL is materially *lower* at matched ANSWER but still above 0.10 -> the price is
+  axis-dependent and the campaign's next object is a KL-selected harvest, not a dose.
+
+Cost ceiling: one A10, four model loads, 60 minutes.
