@@ -979,3 +979,34 @@ refusal leaves before the answer arrives, at every point, on both endpoints.
 (at strength 1.0, with 9 of 12 garbled); at 0.45 it is 2 with 4 garbled. The
 pre-registered bar of >= 8 ANSWER with <= 2 GARBLED is not approached at any strength,
 and rung 11's post-norm curve shows the same shape at 0.4 and 0.6.
+
+## Rung 15 — coverage, the axis the campaign never swept (pre-registered, running)
+
+Every negative here removed the axis at all 48 writes. Rung 3 showed damage scales with
+coverage (attention-only kept 12/12 refusals while KL fell 4.2x), and Heretic-Max's
+recovered direction does not peak where ours does — its top places are L8-L20, ours peak
+at L23. Coverage is therefore a live variable that has never been swept at the endpoint
+where the effect is measured.
+
+Dose is held fixed at 0.60, the strength where refusals fell to 3 of 12 and 8 of 12 were
+garbled, and only the layer window moves:
+
+| arm | layers | places |
+|---|---|---|
+| `ours-pre-0.60-low` | 0-11 | 24 |
+| `ours-pre-0.60-mid` | 6-17 | 24 (spans the heretic peak) |
+| `ours-pre-0.60-high` | 12-23 | 24 (contains our L23 peak) |
+
+A smoke runs first and aborts the rung unless the tally reports exactly 24 edited places,
+so a window that silently fell back to all 48 cannot be reported as a window result.
+
+Pre-registered reading:
+
+- **W1** any window reaches >= 8 ANSWER of 12 with <= 2 GARBLED -> coverage is the
+  discriminator and the campaign's negative is scoped to full coverage. This is the only
+  reading that turns the verdict.
+- **W2** no window reaches the bar, but damage tracks coverage while refusals survive ->
+  the axis is spread across the stack; strengthens the negative.
+- **W3** refusals fall only in the window containing the refusal-relevant layers, and
+  those same layers garble -> refusal and competence share their localisation, which is
+  the mechanism-level statement this campaign can make.

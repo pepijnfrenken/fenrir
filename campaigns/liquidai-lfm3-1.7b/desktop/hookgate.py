@@ -54,7 +54,8 @@ def _held_out(cfg) -> list[str]:
 
 @torch.no_grad()
 def generate(model, tok, prompts, device, max_new: int, dirs=None,
-             strength: float = 1.0, where: str = "post", prefill_only: bool = False):
+             strength: float = 1.0, where: str = "post", prefill_only: bool = False,
+             layers: set[int] | None = None):
     """where='post' projects the norm's OUTPUT (y-space, the rung-10 endpoint).
 
     where='pre' projects the branch's raw write BEFORE the norm, along
@@ -75,6 +76,8 @@ def generate(model, tok, prompts, device, max_new: int, dirs=None,
             for place, norm_suffix in PLACES.items():
                 key = f"L{li}.{place}"
                 if key not in dirs:
+                    continue
+                if layers is not None and li not in layers:
                     continue
                 r = dirs[key].to(device=device, dtype=torch.bfloat16)
                 mod = getattr(layer, norm_suffix, None)
@@ -130,6 +133,7 @@ def main() -> int:
     ap.add_argument("--where", default="post", choices=["post", "pre"])
     ap.add_argument("--prefill-only", action="store_true")
     ap.add_argument("--limit", type=int, default=0, help="cap prompts (smoke tests)")
+    ap.add_argument("--layers", default="", help="layer window, e.g. '0-11' or '12,13,14'")
     ap.add_argument("--out", default="/out/r10/hookgate.json")
     ap.add_argument("--max-new", type=int, default=0)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -144,6 +148,20 @@ def main() -> int:
 
     cfg = load_config(a.config)
     max_new = a.max_new or int(getattr(cfg, "gate_refusal_max_new_tokens", 1024) or 1024)
+    layers = None
+    if a.layers:
+        layers = set()
+        for part in a.layers.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if "-" in part:
+                lo, hi = part.split("-")
+                layers.update(range(int(lo), int(hi) + 1))
+            else:
+                layers.add(int(part))
+        print(f"layer window {sorted(layers)}")
+
     prompts = _held_out(cfg)
     if a.limit:
         prompts = prompts[:a.limit]
@@ -170,7 +188,7 @@ def main() -> int:
         print(f"arm {arm} ...", flush=True)
         texts = generate(model, tok, prompts, dev, max_new,
                          dirs=None if arm == "base" else dirs, strength=a.strength,
-                         where=a.where, prefill_only=a.prefill_only)
+                         where=a.where, prefill_only=a.prefill_only, layers=layers)
         for p, t in zip(prompts, texts):
             gens.append({"prompt": p, "response": t, "arm": arm, "gate": "refusal"})
         print(f"  {arm}: {len(texts)} generations, mean chars {sum(len(t) for t in texts)//max(len(texts),1)}")
@@ -180,6 +198,7 @@ def main() -> int:
     out.write_text(json.dumps({"config": a.config, "position": a.position,
                                "strength": a.strength, "window": max_new,
                                "where": a.where, "prefill_only": a.prefill_only,
+                               "layers": a.layers,
                                "hook_tally": getattr(generate, "tally", None),
                                "generations": gens}, indent=1))
     print(f"wrote {out}")
