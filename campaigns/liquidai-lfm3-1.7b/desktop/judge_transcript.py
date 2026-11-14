@@ -67,29 +67,68 @@ def classify(entries: list[dict], label: str) -> list[dict]:
     return rows
 
 
+def repair(rows: list[dict], out: Path, full: dict[str, str]) -> list[dict]:
+    """Re-judge only the rows that never produced a label, then rewrite the file.
+
+    Uses the full response from the transcript, not the 600-char head stored in the
+    jsonl: a truncated response could be labelled differently from the real one.
+    """
+    todo = [i for i, r in enumerate(rows) if not r.get("measured")]
+    if not todo:
+        print("every row already carries a label; nothing to repair")
+        return rows
+    print(f"repairing {len(todo)} unmeasured row(s)")
+    for i in todo:
+        r = rows[i]
+        text = full.get(r["prompt"], r["response_head"])
+        a = _label({"prompt": r["prompt"], "response": text}, LABELS_A)
+        b = _label({"prompt": r["prompt"], "response": text}, LABELS_B)
+        la, lb = a.get("label"), b.get("label")
+        r.update({"label_a": la, "label_b": lb,
+                  "measured": la is not None and lb is not None,
+                  "agree": la is not None and lb is not None and la == lb,
+                  "why_a": a.get("why"), "why_b": b.get("why")})
+        print(f"  row {i}: {la}/{lb}")
+    out.write_text("\n".join(json.dumps(r) for r in rows))
+    print(f"rewrote {out}")
+    return rows
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("transcript", type=Path)
     ap.add_argument("--out", type=Path, default=None)
     ap.add_argument("--gate", default="refusal", help="gate block to judge (default refusal)")
+    ap.add_argument("--repair", action="store_true",
+                    help="re-judge unmeasured rows in an existing --out file")
     args = ap.parse_args()
 
-    data = json.loads(args.transcript.read_text())
-    gens = data.get("generations") or []
-    blocks = [g for g in gens if g.get("gate") == args.gate]
-    if not blocks:
-        print(f"no '{args.gate}' entries in {args.transcript} "
-              f"(gates present: {sorted({g.get('gate') for g in gens})})")
-        return 3
-
-    # the split deterministic: harmful prompts are the ones the refusal gate ran;
-    # a benign pool is not in the transcript, so everything here is one group.
-    print(f"judge={MODEL} transcript={args.transcript.name} gate={args.gate} n={len(blocks)}")
-    rows = classify(blocks, args.gate)
-
     out = args.out or args.transcript.with_suffix(".judge.jsonl")
-    out.write_text("\n".join(json.dumps(r) for r in rows))
-    print(f"\nwrote {out}")
+    if args.repair:
+        if not out.exists():
+            print(f"no existing judgements at {out}")
+            return 4
+        rows = [json.loads(line) for line in out.read_text().splitlines() if line.strip()]
+        data = json.loads(args.transcript.read_text())
+        full = {g["prompt"]: g.get("response", "") for g in (data.get("generations") or [])
+                if g.get("gate") == args.gate}
+        rows = repair(rows, out, full)
+    else:
+        data = json.loads(args.transcript.read_text())
+        gens = data.get("generations") or []
+        blocks = [g for g in gens if g.get("gate") == args.gate]
+        if not blocks:
+            print(f"no '{args.gate}' entries in {args.transcript} "
+                  f"(gates present: {sorted({g.get('gate') for g in gens})})")
+            return 3
+
+        # the split deterministic: harmful prompts are the ones the refusal gate ran;
+        # a benign pool is not in the transcript, so everything here is one group.
+        print(f"judge={MODEL} transcript={args.transcript.name} gate={args.gate} "
+              f"n={len(blocks)}")
+        rows = classify(blocks, args.gate)
+        out.write_text("\n".join(json.dumps(r) for r in rows))
+        print(f"\nwrote {out}")
 
     per = defaultdict(Counter)
     unmeasured = Counter()
