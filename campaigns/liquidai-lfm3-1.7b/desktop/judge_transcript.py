@@ -28,17 +28,38 @@ sys.path.insert(0, str(_HERE.parents[3]))              # repo root -> llm_api
 from score_with_judge import LABELS_A, LABELS_B, MODEL, _call, _prompt  # noqa: E402
 
 
+VALID = {"REFUSE", "ANSWER", "GARBLED"}
+
+
+def _label(entry: dict, labels: list[str]) -> dict:
+    """One judge call, patience extended, and never a fake label.
+
+    A failed call is not a refusal and not a disagreement: it is a row that was
+    not measured. `ERROR` used to be written into `label_a`, which made a
+    network hiccup indistinguishable from a judgement (rung 17, 0.45 arm, 4
+    rows). Here a row that never produced a valid label is returned as
+    `{"label": None}` so the summary can hold it out of every rate.
+    """
+    out = _call(_prompt(entry["prompt"], entry.get("response") or "", labels), attempts=5)
+    lab = out.get("label")
+    if lab not in VALID:
+        return {"label": None, "why": str(out.get("why"))[:120]}
+    return out
+
+
 def classify(entries: list[dict], label: str) -> list[dict]:
     rows = []
     for i, e in enumerate(entries, 1):
         resp = e.get("response") or ""
         if not resp.strip():
             continue
-        a = _call(_prompt(e["prompt"], resp, LABELS_A))
-        b = _call(_prompt(e["prompt"], resp, LABELS_B))
-        la, lb = a.get("label", "ERROR"), b.get("label", "ERROR")
+        a = _label(e, LABELS_A)
+        b = _label(e, LABELS_B)
+        la, lb = a.get("label"), b.get("label")
+        measured = la is not None and lb is not None
         rows.append({"group": label, "prompt": e["prompt"], "label_a": la, "label_b": lb,
-                     "agree": la == lb and la != "ERROR",
+                     "measured": measured,
+                     "agree": measured and la == lb,
                      "why_a": a.get("why"), "why_b": b.get("why"),
                      "response_head": resp[:600], "response_len": len(resp)})
         if i % 5 == 0:
@@ -71,16 +92,26 @@ def main() -> int:
     print(f"\nwrote {out}")
 
     per = defaultdict(Counter)
+    unmeasured = Counter()
     for r in rows:
+        if not r["measured"]:
+            unmeasured[r["group"]] += 1
+            continue
         per[r["group"]][r["label_a"] if r["agree"] else "DISAGREE"] += 1
-    print("\ngroup | REFUSE | ANSWER | GARBLED | disagree | n")
-    for g in sorted(per):
+    print("\ngroup | REFUSE | ANSWER | GARBLED | disagree | measured | unmeasured | n")
+    for g in sorted(set(per) | set(unmeasured)):
         c = per[g]
+        m = sum(c.values())
         print(f"{g:8s} | {c['REFUSE']:6d} | {c['ANSWER']:6d} | {c['GARBLED']:7d} | "
-              f"{c['DISAGREE']:8d} | {sum(c.values())}")
-    agree = sum(1 for r in rows if r["agree"])
-    print(f"\nlabel-order agreement: {agree}/{len(rows)} = "
-          f"{100.0 * agree / max(1, len(rows)):.1f}%")
+              f"{c['DISAGREE']:8d} | {m:8d} | {unmeasured[g]:10d} | {m + unmeasured[g]}")
+        if unmeasured[g]:
+            print(f"  WARNING: {unmeasured[g]} row(s) carried no valid judge label and are "
+                  f"excluded from every rate above (denominator {m}, not {m + unmeasured[g]})")
+    measured_rows = [r for r in rows if r["measured"]]
+    agree = sum(1 for r in measured_rows if r["agree"])
+    print(f"\nlabel-order agreement on measured rows: {agree}/{len(measured_rows)} = "
+          f"{100.0 * agree / max(1, len(measured_rows)):.1f}%")
+    print(f"measured {len(measured_rows)} of {len(rows)} judged rows")
     return 0
 
 
