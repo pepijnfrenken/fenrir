@@ -66,6 +66,14 @@ def load_prompts(n: int) -> tuple[list[str], list[str]]:
     return bad_p, good_p
 
 
+def _encode(tok, prompt: str, device: str):
+    """Chat-template the prompt. transformers 5.x returns a BatchEncoding."""
+    enc = tok.apply_chat_template([{"role": "user", "content": prompt}],
+                                  add_generation_prompt=True, return_tensors="pt")
+    ids = enc["input_ids"] if hasattr(enc, "keys") else enc
+    return ids.to(device)
+
+
 # ---------------------------------------------------------------- harvest
 @torch.no_grad()
 def harvest(model, tok, prompts: list[str], device: str) -> dict:
@@ -96,9 +104,7 @@ def harvest(model, tok, prompts: list[str], device: str) -> dict:
     try:
         for p in prompts:
             cur.clear()
-            ids = tok.apply_chat_template([{"role": "user", "content": p}],
-                                          add_generation_prompt=True,
-                                          return_tensors="pt").to(device)
+            ids = _encode(tok, p, device)
             model(input_ids=ids)
             for key, h in cur.items():
                 mean_acc.setdefault(key, []).append(h.mean(dim=0))
@@ -292,9 +298,7 @@ def cmd_check(args) -> int:
         out = []
         try:
             for p in prompts:
-                ids = tok.apply_chat_template([{"role": "user", "content": p}],
-                                              add_generation_prompt=True,
-                                              return_tensors="pt").to(device)
+                ids = _encode(tok, p, device)
                 lg = model(input_ids=ids).logits[0, -1].float().log_softmax(-1)
                 out.append(lg.cpu())
         finally:
