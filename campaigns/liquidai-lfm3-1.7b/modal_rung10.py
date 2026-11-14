@@ -67,19 +67,23 @@ def run_rung(strength: float = 1.0, position: str = "mean") -> dict:
     os.makedirs("/out/r10", exist_ok=True)
     print(f"container up; strength={strength} position={position}", flush=True)
     t0 = time.perf_counter()
-    p = subprocess.run(
-        [sys.executable, f"{_CAMP}/desktop/hookgate.py",
+    # stream, do not buffer: a captured hour is a blind hour
+    proc = subprocess.Popen(
+        [sys.executable, "-u", f"{_CAMP}/desktop/hookgate.py",
          "--config", "models/lfm3-1.7b-r8.yaml",
          "--dirs", "/out/r9/r9-directions.pt",
          "--position", position, "--strength", str(strength),
          "--out", "/out/r10/hookgate.json"],
-        cwd="/absolver", env=env, capture_output=True, text=True)
+        cwd="/absolver", env=env, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, text=True, bufsize=1)
+    lines = []
+    for line in proc.stdout:
+        print(line, end="", flush=True)
+        lines.append(line)
+    rc = proc.wait()
     VOL.commit()
-    print(p.stdout[-6000:])
-    if p.returncode != 0:
-        print(p.stderr[-4000:])
-    return {"returncode": p.returncode, "elapsed": round(time.perf_counter() - t0, 1),
-            "stdout": p.stdout[-8000:], "stderr": p.stderr[-4000:]}
+    return {"returncode": rc, "elapsed": round(time.perf_counter() - t0, 1),
+            "stdout": "".join(lines)[-8000:], "stderr": ""}
 
 
 @app.local_entrypoint()
