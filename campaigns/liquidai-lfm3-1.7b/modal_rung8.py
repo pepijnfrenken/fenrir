@@ -33,38 +33,50 @@ from pathlib import Path
 
 import modal
 
-_PROJECT = Path(__file__).resolve().parents[2]      # repo root
 _CAMP = "campaigns/liquidai-lfm3-1.7b"
-_DIRS_PT = _PROJECT / _CAMP / "directions-chat-paired-t320.pt"
+
+# Modal imports this module INSIDE the container (as /root/modal_rung8.py) to
+# hydrate the function, so any path arithmetic on __file__ must be local-only.
+# The image (and its add_local_* mounts) is likewise built only on the client.
+if modal.is_local():
+    _PROJECT = Path(__file__).resolve().parents[2]      # repo root
+    _DIRS_PT = _PROJECT / _CAMP / "directions-chat-paired-t320.pt"
+    assert _DIRS_PT.exists(), f"missing {_DIRS_PT} (needed for the F1 cosine)"
+else:
+    _PROJECT = Path("/absolver")
+    _DIRS_PT = _PROJECT / _CAMP / "directions-chat-paired-t320.pt"
 
 app = modal.App("fenrir-lfm3-r8")
 
-image = (
-    modal.Image.debian_slim(python_version="3.11")
-    .uv_pip_install(
-        "torch>=2.0",
-        "transformers>=5.10",      # LFM3 remote code needs the 5.x API
-        "accelerate>=1.0",
-        "datasets>=3.0",           # mlabonne/harmless_alpaca + harmful_behaviors
-        "numpy>=1.24",
-        "pyyaml>=6",
-        "pydantic>=2",
-        "safetensors>=0.4",
-        "huggingface-hub>=0.30",
+if modal.is_local():
+    image = (
+        modal.Image.debian_slim(python_version="3.11")
+        .uv_pip_install(
+            "torch>=2.0",
+            "transformers>=5.10",      # LFM3 remote code needs the 5.x API
+            "accelerate>=1.0",
+            "datasets>=3.0",           # mlabonne/harmless_alpaca + harmful_behaviors
+            "numpy>=1.24",
+            "pyyaml>=6",
+            "pydantic>=2",
+            "safetensors>=0.4",
+            "huggingface-hub>=0.30",
+        )
+        .env({"PYTHONPATH": "/absolver", "TRANSFORMERS_VERBOSITY": "error",
+              "HF_HUB_DISABLE_PROGRESS_BARS": "1", "TOKENIZERS_PARALLELISM": "false"})
+        # the paired direction file lives under campaigns/, which the dir mount
+        # ignores, so it is added explicitly (F1 needs it inside the container)
+        .add_local_file(str(_DIRS_PT), f"/absolver/{_CAMP}/directions-chat-paired-t320.pt")
+        .add_local_dir(  # must be LAST build step
+            str(_PROJECT),
+            remote_path="/absolver",
+            ignore=[".venv", ".git", "__pycache__", "*.pyc", ".aiwg", "abliterated_models",
+                    "campaigns", "experiments", "abl-work", ".forensics", ".judge_in",
+                    "public", "public-transcripts", "results4b"],
+        )
     )
-    .env({"PYTHONPATH": "/absolver", "TRANSFORMERS_VERBOSITY": "error",
-          "HF_HUB_DISABLE_PROGRESS_BARS": "1", "TOKENIZERS_PARALLELISM": "false"})
-    # the paired direction file lives under campaigns/, which the dir mount
-    # ignores, so it is added explicitly (F1 needs it inside the container)
-    .add_local_file(str(_DIRS_PT), f"/absolver/{_CAMP}/directions-chat-paired-t320.pt")
-    .add_local_dir(  # must be LAST build step
-        str(_PROJECT),
-        remote_path="/absolver",
-        ignore=[".venv", ".git", "__pycache__", "*.pyc", ".aiwg", "abliterated_models",
-                "campaigns", "experiments", "abl-work", ".forensics", ".judge_in",
-                "public", "public-transcripts", "results4b"],
-    )
-)
+else:   # in-container: never built, only referenced by the hydrated function
+    image = modal.Image.debian_slim(python_version="3.11")
 
 GPU = os.environ.get("ABSOLVER_GPU", "L4")
 TIMEOUT = int(os.environ.get("ABSOLVER_TIMEOUT", "10800"))
