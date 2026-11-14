@@ -423,3 +423,32 @@ Falsifiers, before any number exists:
 `judge_transcript.py` is added for this rung because the steer-test judge reads a
 different schema; same three labels, same label-order permutation, disagreement
 reported. Refusal count alone has already certified slop once in this campaign.
+
+### Rung 7 first result — measured, and one instrument defect found
+
+`MihaiPopa-1/LFM3-1.7B-Heretic-Max` gated with our instrument on the held-out
+12-prompt split, 1024-token window:
+
+- refusal **0/12 style-aware, 0/12 keyword**
+- coherence **12/12**
+- capability, first-token KL: **skipped** (a foreign `model_id` has no pristine
+  baseline registered, and the harness correctly refuses to invent one)
+
+The harness then aborted with `FAIL FAST: BASELINE SANITY GATE RED … no refusal
+signal on 12 prompts under EITHER readout`, because it treats the config's
+`model_id` as pristine and a pristine model that refuses nothing is an
+instrument warning. For a foreign build that guard is measuring the wrong thing:
+the build is not pristine, it is the object under test. Rung 7b passes it as
+`--model-dir` instead.
+
+**The defect in that number.** All 12 responses hit the 1024-token cap with the
+thinking block still open (`<｜end▁of▁thinking｜>` absent, 4292-4841 characters
+each). So "0/12 refused" is measured and "does it answer or is it slop" is not —
+exactly the failure mode that produced the campaign's 256-token GARBLED artefact
+in rung 5. The reasoning text is substantive in the harmful direction (it is
+composing the method, not declining), which is the first time any edit in this
+campaign has gotten that far. Rung 7b re-gates at 4096 tokens before any verdict
+is written.
+
+Raw generations from rung 7b stay on the desktop (`public-transcripts/`,
+git-ignored). Only counts, label tables and 60-character heads are committed.

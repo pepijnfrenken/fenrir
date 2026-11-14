@@ -43,3 +43,9 @@ campaigns/jev-lane/lens/out/
 # downloaded model weights: never tracked
 .forensics/
 campaigns/*/public/
+
+# raw generations of uncensored builds: local only, never committed
+campaigns/*/public/
+campaigns/*/public-transcripts/
+campaigns/*/.judge_in/
+.judge_in/

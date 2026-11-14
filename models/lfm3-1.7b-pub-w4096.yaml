@@ -1,0 +1,32 @@
+# Public "abliterated" LFM3 build, measured at a window that clears its thinking
+# block. MihaiPopa-1/LFM3-1.7B-Heretic-Max at 1024 tokens produced 12/12
+# responses that hit the cap mid-reasoning with no closing think tag, so the
+# ANSWER/GARBLED distinction was not measurable — the instrument, not the model,
+# set the verdict. 4096 tokens is roughly 2.4x the observed reasoning length.
+model_id: LiquidAI/LFM3-1.7B
+model_arch: dense
+dtype: bfloat16
+device: auto
+trust_remote_code: true
+
+method: mpoa
+dir_method: paired
+n_directions: 3
+alpha: 2.0
+passes: 1
+
+target_layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+target_weights: [o_proj, conv_out, w2]
+
+n_test_prompts: 12
+gate_refusal_max: 0.03
+gate_refusal_max_new_tokens: 4096
+gate_refusal_family: null
+gate_kl_max: 0.1
+gate_capability_min: 0.83
+gate_coherence_min: 0.9
+gate_degeneracy_max: 0.05
+gate_ppl_increase_max: 0.15
+
+max_seq_len: 4096
+prompt_flavor: chat
