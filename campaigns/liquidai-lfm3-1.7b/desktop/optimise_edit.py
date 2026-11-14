@@ -283,7 +283,10 @@ def main() -> int:
     ap.add_argument("--max-new", type=int, default=0)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     a = ap.parse_args()
-    return stage_gate(a) if a.stage == "gate" else (stage_optim(a) and 0)
+    if a.stage == "gate":
+        return stage_gate(a)
+    stage_optim(a)
+    return 0
 
 
 if __name__ == "__main__":
