@@ -67,6 +67,12 @@ if modal.is_local():
         # the paired direction file lives under campaigns/, which the dir mount
         # ignores, so it is added explicitly (F1 needs it inside the container)
         .add_local_file(str(_DIRS_PT), f"/absolver/{_CAMP}/directions-chat-paired-t320.pt")
+        # the dir mount excludes campaigns/ (it holds multi-GB checkpoints), so the
+        # scripts this lane runs are added one by one at their real paths
+        .add_local_file(str(_PROJECT / _CAMP / "desktop" / "reproduce_heretic.py"),
+                        f"/absolver/{_CAMP}/desktop/reproduce_heretic.py")
+        .add_local_file(str(_PROJECT / _CAMP / "desktop" / "interference_check.py"),
+                        f"/absolver/{_CAMP}/desktop/interference_check.py")
         .add_local_dir(  # must be LAST build step
             str(_PROJECT),
             remote_path="/absolver",
