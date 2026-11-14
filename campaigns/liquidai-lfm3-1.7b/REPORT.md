@@ -5,16 +5,18 @@ Date: 2026-11-13. Hardware: desktop RTX 3060 Ti 8 GB, WSL2 Ubuntu-24.04, driver
 
 ## Verdict (final, supersedes the interim verdict below)
 
-**NEGATIVE for abliteration, POSITIVE for the mechanism.** Six rungs, all on
+**NEGATIVE for this recipe. The model itself is abliterable — a public build
+proves it, and the public build is not clean either.** Seven rungs, all on
 measured numbers. What is now established:
 
 1. The paired output-phase direction **does** carry refusal information on
    LFM3-1.7B. At alpha 0.05 the harmful refusal rate goes 8/8 -> 0/8. A gaussian
    control vector of identical magnitude leaves it at 8/8 and coherent.
 2. The effect is **layer-agnostic**: the same 24 vectors placed on deranged
-   layers also kills the refusal sentence. The directions are near-collinear, so
-   "all 24 layers" was always one global axis applied 24 times. No layer
-   localisation is available from this harvest.
+   layers also kills the refusal sentence. The directions are near-collinear
+   (0.49 mean across layers, 0.81 between neighbours), so "all 24 layers" was
+   always one global axis applied 24 times. No layer localisation is available
+   from this harvest.
 3. **Removal never produced one usable answer.** Judge, blind to arm and alpha:
    real arm 14/14 GARBLED, shuffled arm 11/14 GARBLED, gaussian arm untouched.
    Where refusal goes, the content goes with it, at every dose from 0.38% to 15%
@@ -23,8 +25,27 @@ measured numbers. What is now established:
    last-token residual norm at L23 is 12.99; the inherited LFM2.5 ladder of
    0.5-3.0 is 3.8-23% of that, which destroys any model. The harness now prints
    the ratio (`alpha_scale_note`) and stores `residual_norm_last_token`.
+5. Rung 7b, on the public `MihaiPopa-1/LFM3-1.7B-Heretic-Max` build, with our
+   instruments at a 4096-token window: **0/12 refusals, 12/12 coherent,
+   MMLU 0.500 vs 0.400**, and a blind judge reading **6 ANSWER / 5 GARBLED**.
+   So the model can be made to comply without losing coherence or capability,
+   and still half of the answers are unusable. This campaign's own recipe never
+   got one usable answer; the public recipe gets six.
+6. **The interference gate was measuring the effect and calling it damage.**
+   `first_token_kl` ran on the harmful held-out split, so the public build scored
+   11.73 nats and failed `eval_pass` while being the best object measured here.
+   Now enforced: interference on the harmless pool, `prompt_set` recorded, and
+   `eval_pass` blocked when a run rests on the harmful split.
 
-No checkpoint from this campaign is publishable as an abliterated model.
+The two weight-space facts that explain the gap, from
+`docs/public-build-forensics.md`: the public ARA build sits at the **same dose**
+as our edit (rel_change 4-14% vs 4.8%) but is **rank 2.3-11.3** with a
+**cross-layer cosine of ~0.0**, i.e. a different edit per layer rather than one
+axis repeated. Rank-1 heretic builds work too, so the direction source (400/400
+disjoint prompts, first generated token, orthogonalised against the good mean)
+is the remaining variable. Rung 8 tests that on our own weights, on Modal.
+
+No checkpoint from rungs 1-6 is publishable as an abliterated model.
 
 ## Instrument history (read this before the numbers)
 
@@ -46,6 +67,17 @@ produced by the fixed instruments unless marked otherwise.
    coherence and degeneracy, a majority-incoherent alpha is flagged `COLLAPSE`,
    its counts are void, and it can never satisfy `--require-effect`. Two tests
    pin this exact failure (117 tests total pass).
+
+4. **The interference gates were measured on the objective split.** Found in
+   rung 7b: `perplexity_increase` and `first_token_kl` ran on the held-out
+   harmful prompts, the ones whose distribution is the thing being changed. A
+   build that removes refusal therefore fails KL by construction — the public
+   Heretic build scored 11.73 nats while refusing 0/12, answering coherently and
+   gaining MMLU, and this campaign's own edits scored ~0.3 while removing
+   nothing usable. Interference now runs on a harmless pool
+   (`n_interference_prompts`, default 20), every number carries a `prompt_set`
+   label, and `gates.enforce_interference_provenance` forces `eval_pass: false`
+   when a run rests on the legacy harmful split.
 
 ## Gates (12-prompt held-out split, all measurements on this box)
 
