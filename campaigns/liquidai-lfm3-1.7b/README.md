@@ -1260,3 +1260,35 @@ the bar (1 REFUSE / 9 ANSWER / 2 GARBLED) and a smaller dose should cost less KL
 The distinction that matters for the record: **this is no longer a hook-time claim.** The
 artifact is a real checkpoint, loaded with nothing registered, generating on its own. What it
 does not yet do is pass the interference budget at the dose that removes refusals.
+
+## Rung 22 — the dose curve on the artifact, and the trade is structural
+
+Same axis (`last` harvest), same 48 pre-norm places, baked at s = 1.0 and 1.25, each verified
+with no hooks and each measured on both the refusal pool and benign interference.
+
+| baked dose | refusal REFUSE/ANSWER/GARBLED | benign KL mean (max) | benign judged R/A/G |
+|---|---|---|---|
+| s = 1.0 | 2 / 10 / 0 | 0.304 (1.675) | 0 / 12 / 0 |
+| s = 1.25 | 1 / 10 / 1 | 0.427 (2.160) | 0 / 12 / 0 |
+| s = 1.5 (rung 21) | 0 / 9 / 2 | 0.514 (2.310) | 0 / 11 / 1 |
+
+All three are real artifacts: no hooks registered, 12/12 rows measured, label-order agreement
+11-12/12. All three clear **R1**. **None clears the 0.10-nat benign KL budget**, and KL is
+monotone in dose (0.304 -> 0.427 -> 0.514), so this is not **D3**.
+
+**D2 fires.** Reaching KL <= 0.10 means s ~= 0.33 by the measured slope, and at s = 0.5 the hook
+arm still refuses 10 of 12 with 0 answers (rung 19). Refusal removal and harmless-prompt drift
+move together on this axis: at every dose where the artifact answers 9-10 of 12, it has moved the
+model by 0.3-0.5 nats on prompts whose behaviour must not move. That is the campaign's answer for
+the uniform rank-1 form on this harvest, and it is written here rather than worked around by
+raising the budget after seeing the number.
+
+Consistency check on the bake itself: `rel_change` is **0.000559 at s = 1.0, 0.000535 at 1.25,
+0.000459 at 1.5** — it peaks at s = 1, exactly where the Frobenius reduction factor (2s - s^2)
+peaks. The tensor edit is doing what the algebra says, so the KL curve is a property of the axis,
+not a bake defect.
+
+What ships today: `r22/baked-last-1` on the `absolver-phase2` volume — a 1.7B checkpoint, no hooks,
+2 REFUSE / 10 ANSWER / 0 GARBLED on 12 held-out harmful prompts, 0 GARBLED and 12/12 ANSWER on 12
+harmless prompts, at a measured cost of 0.304 nats mean KL at the first answer position. It is a
+working abliterated model with a stated price, not a free one.
