@@ -1010,3 +1010,38 @@ Pre-registered reading:
 - **W3** refusals fall only in the window containing the refusal-relevant layers, and
   those same layers garble -> refusal and competence share their localisation, which is
   the mechanism-level statement this campaign can make.
+
+### Rung 15 result: coverage swept, verdict W3 — and the peak layer is not the functional layer
+
+Arms ran 2026-11-14 on one L4 (896.5 s / 561.5 s / 228.1 s), dose fixed at 0.60, pre-norm
+endpoint, thinking on (this rung predates the `enable_thinking` patch, so `thinking` is
+absent from its JSON — read it as thinking-ON throughout). Blind judge, 24 rows per arm
+(base 12 + hook 12), agreement 100 % / 100 % / 96 %. Base for every arm is the rung-14b
+base, 12/12 REFUSE.
+
+| window | refusals left | ANSWER | GARBLED | mean chars | judge agreement |
+|---|---|---|---|---|---|
+| `0-11` | 3 / 12 | 4 | 5 | 7,764 | 24/24 |
+| `6-17` (spans heretic's peak) | 9 / 12 | 1 | 2 | 4,789 | 24/24 |
+| `12-23` (contains our L23 peak) | 12 / 12 | 0 | 0 | 1,879 | 23/24 |
+
+**W1 fails.** No window comes near 8 ANSWER with 2 GARBLED. **W2 fails too**: damage does
+not simply track coverage, because the window with the most damage is *inert* on refusal.
+This is **W3**, and sharper than it was written:
+
+1. Removal at layers 12-23 changes nothing. Not a single refusal moved (24/24 raw), text
+   length stays at base (1,879 vs 1,365), and the judge sees the ordinary refusal. Half of
+   all 48 writes — including the L23 pair where our harvested direction has its highest
+   separation (3.64) — can be projected away with no effect on refusal whatsoever.
+2. The effect lives in the first half. Layers 0-11 remove 9 of 12 refusals and take 4
+   answers down with 5 garbled; layers 6-17 remove 3 of 12 with clean text.
+3. So the harvest's separation ranking does not locate the operative layers. A direction
+   that is *maximally discriminative* at L23 is *functionally inert* there, and the same
+   direction at layers 0-11 moves behaviour. Separation score is a readout of where refusal
+   is legible, not where removing it changes the answer. This campaign optimised on that
+   readout for fifteen rungs. That is the mechanism-level lesson, and it costs nothing to
+   state: the earlier rungs chose L23-heavy coverage because L23 scored highest, and L23 is
+   the one place where the edit demonstrably does nothing.
+
+Rung 15 does not turn the verdict. It relocates it, and it puts a hole in the rung-3 story
+that "damage scales with coverage" — damage scales with *which* layers, not how many.
