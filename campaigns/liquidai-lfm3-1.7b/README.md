@@ -1366,3 +1366,43 @@ harmless prompts, while the gate I quote is first-answer-position KL on 12. Thos
 estimators, so "the optimiser ignored the budget" and "the optimiser satisfied a different budget"
 are both consistent with this run. Before any further optimiser rung, the objective and the reported
 gate must be the same number. That is defect 12 and it is queued, not argued away.
+
+## Rung 24 result — H1 fires. The published axis is 10x cheaper, and it ships under budget
+
+The published (Heretic-Max recovered) axis — 39 places, harvest position `mean`, recovered at 3.08–3.75%
+rel_change per operator tensor — baked pre-norm at two doses. Verify stages register no hooks, so every
+number below is the artifact, not the hook.
+
+| dose | rel_change | REFUSE | ANSWER | GARBLED | disagree | benign KL mean (max) | benign judged |
+|---|---|---|---|---|---|---|---|
+| 0.5 | 0.000354 | 11 | 1 | 0 | 0 | **0.00695** (0.0275) | 0/12/0 |
+| 1.0 | 0.000430 | **0** | **10** | **1** | 1 | **0.03188** (0.0645) | 0/12/0 |
+
+All three judged arms n = 12, measured 12/12, agreement 100% / 100% / 91.7%.
+
+**H1 PASSES.** At s = 1.0 the baked artifact answers 10 of 12 with one GARBLED row, refuses none, and
+pays 0.032 nats of benign KL — inside a budget this campaign has never come near.
+
+**H2 PASSES as the sharper claim.** At matched ANSWER count the two axes are not the same object:
+
+| axis | dose | REFUSE | ANSWER | GARBLED | benign KL |
+|---|---|---|---|---|---|
+| ours (`last`) | 1.0 | 2 | 10 | 0 | 0.304 |
+| published (`mean`) | 1.0 | 0 | 10 | 1 | **0.032** |
+
+Same 39–48 places, same write matrices, same pre-norm endpoint, same bake algebra, same prompts, same
+judge. The published axis removes **more** refusal for **9.5x less** harmless drift. The cost of this
+abliteration is a property of the direction, not of rank-1 removal or of the dose. Rung 23's 0.631 and
+rung 22's 0.304 were measurements of **our harvest**, and this rung says so.
+
+**H3 does not fire, and the honest reading matters.** A dose exists (0.5) that costs 0.007 nats and
+still refuses 11 of 12. So the price is not "the axis is free"; it is a threshold in dose, and the
+published axis buys its refusal removal at a point below the budget rather than by never paying. The
+mechanism: a direction nearly orthogonal to the write matrices (rho 0.0257 vs our 0.0287) already
+carries almost no output mass, so removing it moves logits 10x less for the same answer behaviour.
+
+### What this rung supersedes
+
+The rung 21/22/23 conclusion "no artifact clears 0.10 nats in the rank-1 family" is **withdrawn**. It
+was true of every arm this campaign harvested itself and false of the recovered published axis.
+Recorded here rather than deleted, per the campaign rule.
