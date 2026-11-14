@@ -136,6 +136,7 @@ def main() -> int:
         cmp_tbl = []
         pp = Path("campaigns/liquidai-lfm3-1.7b/directions-chat-paired-t320.pt")
         if pp.exists():
+            v_cpu = v_global.detach().to("cpu").float()   # v_global lives on cuda
             blob_ours = torch.load(pp, map_location="cpu", weights_only=False)
             # the direction file is {"dirs": {...}, "scores": ..., "model_id": ...};
             # tolerate a bare layer->tensor map too
@@ -145,7 +146,7 @@ def main() -> int:
                 d = d.reshape(-1, d.shape[-1])[0].float()
                 d = d / d.norm().clamp(min=1e-8)
                 cmp_tbl.append({"layer": int(li),
-                                "cos_with_heretic_global": round(float((d @ v_global).abs()), 4)})
+                                "cos_with_heretic_global": round(float((d @ v_cpu).abs()), 4)})
             cos_mean = sum(c["cos_with_heretic_global"] for c in cmp_tbl) / len(cmp_tbl)
             print(f"cos(our paired per-layer, heretic global): mean {cos_mean:.3f} "
                   f"min {min(c['cos_with_heretic_global'] for c in cmp_tbl):.3f} "
