@@ -230,3 +230,29 @@ behaviour does not, do not conclude the direction is wrong. First check whether
 the bake reproduces generation-time removal. `bake_asym.py check` does that with
 `KL(baked || hooked)` against `KL(baked || base)`; a ratio near 1 means the write
 is not the edit you think it is.
+
+## A faithful bake does not exist at this gamma scale (2026-11-14)
+
+`rSalone/LFM3-1.7B-uncensored-abl48` documents the asymmetric sandwich-norm edit,
+`W' = W - b(a^T W)` with `a = gamma*r`, `b = r/gamma`, `a^T b = 1`, and reports
+KL 0.0013 between baked and hooked outputs. Reproducing that on this checkpoint
+fails the faithfulness check on both variants:
+
+| variant | rel_change on the 48 writers | KL(baked || hooked) | KL(baked || base) | ratio |
+|---|---|---|---|---|
+| symmetric `a = b = r` | — | 5.2258 | 5.2357 | 0.998 |
+| asymmetric, `b = r/gamma` | — | 5.2258 | 5.2357 | 0.998 |
+| asymmetric + `1/rms(x)` | 0.066 - 25.14 (mean 4.83) | 12.0416 | 12.0420 | 1.000 |
+
+`Lfm3RMSNorm` is `y = weight * x/rms(x)` (T5-style, no `1 + w`), and the learned
+post-norm weights really are tiny: mean `|gamma|` 0.0139 at `L2.operator`,
+pre-norm rms mean 0.066. Because `y` is a shrunken copy of `x/rms`, removing a
+direction from `y` requires a change in `x` of order `||x||`, concentrated in the
+channels whose gain is small. The norm then re-normalises the inflated result, so
+the linear map cannot reproduce the hook edit at any scaling constant.
+
+Rule for the next build: measure faithfulness first (KL baked vs hooked, must be
+well below KL baked vs base) and stop if it is not. Do not tune a scale constant to
+chase it; when the ratio sits at 1.0 the model is equidistant from both, which is
+five to twelve nats from working, not a rounding error. The scientific claim does
+not need the bake: apply the direction at generation time and measure refusal there.
