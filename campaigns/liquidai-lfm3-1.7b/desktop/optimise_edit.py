@@ -145,7 +145,8 @@ def _register(model, dirs, wmap, device, tally=None):
                     else:
                         tally["prompt_passes"] += 1
                 term = (x.float() @ a.float()).to(x.dtype)
-                return (x - (s * term).unsqueeze(-1) * a,) + tuple(args[1:])
+                ss = s.to(term.dtype) if torch.is_tensor(s) else s
+                return (x - (ss * term).unsqueeze(-1) * a,) + tuple(args[1:])
 
             handles.append(mod.register_forward_pre_hook(_p))
     return handles, keys
