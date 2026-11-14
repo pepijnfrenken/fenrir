@@ -1342,3 +1342,27 @@ Pre-registered:
   axis-dependent and the campaign's next object is a KL-selected harvest, not a dose.
 
 Cost ceiling: one A10, four model loads, 60 minutes.
+
+## Rung 23 result — per-place strength does not buy a cheaper trade
+
+Optimiser on the working axis (`--position last`, 300 steps, lam = 10 on KL, max |w| = 2.0):
+34 of 48 places moved, median w 1.103, **the cap bound at 2.0**. Baked at rel_change 0.000259.
+
+| arm | REFUSE | ANSWER | GARBLED | disagree | n |
+|---|---|---|---|---|---|
+| gate (hooked) | 0 | 9 | 3 | 1 | 12 |
+| verify (baked, no hooks) | 0 | 9 | 3 | 0 | 12 |
+| benign pool, baked | 0 | 12 | 0 | 0 | 12 |
+
+Benign **KL 0.631** (max 2.398).
+
+**O2 fires.** Refusal removal was reached, coherence is intact on harmless prompts, and the harmless
+KL is **twice** the uniform s = 1.0 artifact's (0.631 vs 0.304), with one more GARBLED row. Forty-eight
+free strengths under a 10x KL penalty produced a more expensive edit than one number, so the trade is
+not a dosing artefact and not a resolution artefact.
+
+Stated as an instrument caveat, not buried: the optimiser minimises KL over 16 positions on 20
+harmless prompts, while the gate I quote is first-answer-position KL on 12. Those are different
+estimators, so "the optimiser ignored the budget" and "the optimiser satisfied a different budget"
+are both consistent with this run. Before any further optimiser rung, the objective and the reported
+gate must be the same number. That is defect 12 and it is queued, not argued away.
