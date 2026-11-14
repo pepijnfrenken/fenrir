@@ -99,8 +99,13 @@ def run_rung() -> dict:
         cwd="/absolver", env=env, capture_output=True, text=True)
     print(smoke.stdout[-1500:], smoke.stderr[-1500:], flush=True)
     tally = json.loads(Path("/out/r15/smoke.json").read_text()).get("hook_tally") or {}
-    ok = tally.get("prompt_passes") == 24 and tally.get("edited") == 24
-    print(f"smoke tally {tally} -> ok={ok} (expect 24 places for 12 layers x 2)", flush=True)
+    # A full-length run edits every pass, so `edited` is prompt + decode, not the place
+    # count. The window shows up as 24 places per pass against the 48 an unwindowed run
+    # fires, so the checks are: 24 on the prompt pass, and decode divisible by 24.
+    pp = tally.get("prompt_passes", 0)
+    dp = tally.get("decode_passes", 0)
+    ok = pp == 24 and dp > 0 and dp % 24 == 0 and tally.get("edited") == pp + dp
+    print(f"smoke tally {tally} -> ok={ok} (expect 24 places/pass for 12 layers x 2)", flush=True)
     if not ok:
         return {"smoke_failed": True, "tally": tally}
 
