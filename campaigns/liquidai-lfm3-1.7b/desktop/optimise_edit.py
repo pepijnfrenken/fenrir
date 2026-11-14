@@ -121,10 +121,30 @@ def _opt_pools(cfg, n_harmful, n_harmless):
     return seen(DEFAULT_HARMFUL)[:n_harmful], seen(DEFAULT_HARMLESS)[:n_harmless], held
 
 
-def _register(model, dirs, wmap, device, tally=None):
+def _layer_window(spec: str) -> set[int] | None:
+    """'0-11' or '12,13,14' -> a set of layer indices; '' -> None (all layers)."""
+    spec = (spec or "").strip()
+    if not spec:
+        return None
+    out: set[int] = set()
+    for part in spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            lo, hi = part.split("-")
+            out.update(range(int(lo), int(hi) + 1))
+        else:
+            out.add(int(part))
+    return out
+
+
+def _register(model, dirs, wmap, device, tally=None, layers: set[int] | None = None):
     """Pre-norm hooks whose strength is read from wmap (dict of floats or live tensors)."""
     handles, keys = [], []
     for li in range(N_LAYERS):
+        if layers is not None and li not in layers:
+            continue
         layer = model.model.layers[li]
         for place in NORMS:
             key = f"L{li}.{place}"
@@ -199,11 +219,14 @@ def stage_optim(a) -> int:
 
     blob = torch.load(a.dirs, map_location="cpu", weights_only=False)
     dirs = blob["dirs"][a.position]
-    keys = [f"L{li}.{p}" for li in range(N_LAYERS) for p in NORMS if f"L{li}.{p}" in dirs]
-    print(f"places {len(keys)}", flush=True)
+    win = _layer_window(a.layers)
+    keys = [f"L{li}.{p}" for li in range(N_LAYERS) if win is None or li in win
+            for p in NORMS if f"L{li}.{p}" in dirs]
+    print(f"places {len(keys)} window {a.layers or 'all'}", flush=True)
 
     w = torch.zeros(len(keys), device=dev, dtype=torch.float32, requires_grad=True)
-    handles, live = _register(model, dirs, {k: w[i] for i, k in enumerate(keys)}, dev)
+    handles, live = _register(model, dirs, {k: w[i] for i, k in enumerate(keys)}, dev,
+                              layers=win)
     assert live == keys, (len(live), len(keys))
 
     ref_ids = _first_ids(tok, REFUSE_TOKENS)
@@ -252,6 +275,7 @@ def stage_optim(a) -> int:
     out = {"w": {k: round(float(w[i]), 4) for i, k in enumerate(keys)},
            "history": hist, "lam": a.lam, "l2": a.l2, "steps": a.steps,
            "position": a.position, "dirs": a.dirs, "endpoint": "pre",
+           "layers": a.layers,
            "n_opt_harmful": len(opt_harmful), "n_opt_harmless": len(opt_harmless),
            "held_out": sorted(held)}
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
@@ -278,7 +302,8 @@ def stage_gate(a) -> int:
     model = AutoModelForCausalLM.from_pretrained(MODEL_ID, dtype=torch.bfloat16,
                                                  trust_remote_code=True).to(dev).eval()
     tally = {"prompt_passes": 0, "decode_passes": 0, "edited": 0}
-    handles, used = _register(model, dirs, wmap, dev, tally)
+    win = _layer_window(opt.get("layers", ""))
+    handles, used = _register(model, dirs, wmap, dev, tally, layers=win)
     print(f"applied {len(used)} places at the pre-norm endpoint, thinking OFF", flush=True)
     prompts = _held_out(cfg)
     try:
@@ -377,6 +402,8 @@ def main() -> int:
     ap.add_argument("--kl-positions", type=int, default=16)
     ap.add_argument("--n-harmful", type=int, default=20)
     ap.add_argument("--n-harmless", type=int, default=20)
+    ap.add_argument("--layers", default="",
+                    help="layer window for the strengths, e.g. '0-11'; default all 24 layers")
     ap.add_argument("--max-new", type=int, default=4096)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     a = ap.parse_args()
