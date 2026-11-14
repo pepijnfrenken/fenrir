@@ -181,3 +181,52 @@ reads KL ≥ 0.5 at the disclosed lambda, the published KL is not reproducible h
    is not measuring damage.
 7. Published numbers are measured with unknown instruments. Re-measure before you
    use one as a target.
+
+## The per-layer cosine is not the discriminator (correction, 2026-11-14)
+
+An earlier reading of this note said the working public builds carry a *different
+direction per layer* and that this explained why our single global axis failed.
+Measured properly across the two builds that ship fp16 weights, that is false.
+One of them is one axis repeated, and it works.
+
+| build | tensors changed | cross-layer cos (mean) | adjacent | effective directions | rel_change |
+|---|---|---|---|---|---|
+| `Austriani/…-ARA-Abliterated` | 11 (`o_proj`+`w2`, L12-19,22) | **-0.04** | - | - | 4.04-14.09 % |
+| `MihaiPopa-1/…-Heretic-Max` | 39 (`o_proj`+`conv.out_proj`+`w2`, all layers) | **0.985-0.999** | 0.986-0.999 | **1.24-1.71** | 2.52-3.75 % |
+| ours (`mpoa`, 24 layers) | 26-72 | 0.49 | 0.81 | - | 4.82 % |
+
+`cross_layer_cosine.py` gives this in one pass: for each changed tensor, take the
+leading left singular vector of `W_other - W_base`, then the |cos| matrix across
+layers. Heretic-Max's `feed_forward.w2` sits at **0.999** with an effective
+direction count of **1.24** — that is one direction, written everywhere.
+
+So the axis "distinct per-layer directions" cannot be the thing that separates a
+working build from a failed one: the working group contains both extremes. What
+both working builds *do* share, against ours:
+
+1. **All writers.** They edit `conv.out_proj` as well as `o_proj` and `w2`. Our
+   rungs 1-6 edited `o_proj`+`conv_out`+`w2` at 24 layers; the rung-8 heretic
+   reproduction edited only `o_proj`+`w2` at 13 layers, because the card disclosed
+   only those two. Heretic-Max's own diff shows `conv.out_proj` changed anyway.
+2. **A dose that is low and uniform.** 2.5-3.75 % on every tensor, against our
+   inherited 4.8-15 % ladders.
+3. **A sandwich-norm-aware write.** See below.
+
+Lesson for the instrument: report `rank1_frac`, `eff_rank` and the cross-layer
+cosine together, and never infer method from one of them. Rank-1 with cos 1.0 and
+rank-1 with cos 0.0 are both rank-1 and are different edits.
+
+## The sandwich-norm trap (new forensics step)
+
+`modeling_lfm3.py` puts `post_operator_norm` and `post_ffn_norm` between every
+residual writer and the residual add, so a direction measured on the branch
+output lives in a gamma-scaled space. `rSalone/LFM3-1.7B-uncensored-abl48`
+measured this on this model: baking the symmetric `W - lam v v^T W` gives KL
+0.0053 against generation-time removal, while baking `W - b(a^T W)` with
+`a = gamma*r`, `b = r/gamma`, `a.b = 1` gives 0.0013.
+
+Consequence for forensics: when a build's rel_change looks like ours and its
+behaviour does not, do not conclude the direction is wrong. First check whether
+the bake reproduces generation-time removal. `bake_asym.py check` does that with
+`KL(baked || hooked)` against `KL(baked || base)`; a ratio near 1 means the write
+is not the edit you think it is.

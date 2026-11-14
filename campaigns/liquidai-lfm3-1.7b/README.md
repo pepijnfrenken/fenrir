@@ -576,3 +576,31 @@ own instrument is wrong again and no gate number from this repo is trustworthy
 until it is fixed.
 
 **Cost ceiling.** One L4, one container, ~40 minutes. Nothing on the desktop.
+
+### What rung 9 inherited from the forensics (added before its numbers)
+
+Two corrections landed while rung 9 was in flight, both from measuring the
+published weights rather than reading their cards.
+
+**The "distinct per-layer directions" reading is withdrawn.** ARA's per-layer
+deltas are near-orthogonal (cos mean -0.04). Heretic-Max's are not: measured with
+`desktop/cross_layer_cosine.py`, its leading singular vectors agree at **0.985
+(conv.out_proj), 0.999 (w2), 0.991 (o_proj)** across layers, with effective
+direction counts of **1.24-1.71**. It is one direction written at every layer,
+and it refuses 0/12. Our directions are 0.49 collinear - also roughly one axis.
+So collinearity does not separate a working build from ours, and rung 8's F1
+cosine (0.022 against our axis) describes *which* axis, not how many.
+
+**What the working builds do share, and we did not:** all writers including
+`conv.out_proj` (Heretic-Max changes 39 tensors over all 24 layers at 2.5-3.75 %
+rel_change), a low uniform dose, and - per rSalone's measurement on this model -
+the gamma pairing. Rung 9 tests the third of those first, because it is the only
+one that is arithmetically wrong in our code rather than merely chosen.
+
+Heretic-Max dose table, for comparison with our bake:
+
+| component | layers | rel_change | cross-layer cos | eff. directions |
+|---|---|---|---|---|
+| conv.out_proj | 11 | 2.56-3.75 % | 0.985 | 1.71 |
+| feed_forward.w2 | 17 | 2.56-3.08 % | 0.999 | 1.24 |
+| self_attn.o_proj | 11 | 2.52-3.48 % | 0.991 | 1.53 |
