@@ -452,3 +452,70 @@ is written.
 
 Raw generations from rung 7b stay on the desktop (`public-transcripts/`,
 git-ignored). Only counts, label tables and 60-character heads are committed.
+
+---
+
+## Rung 7b results — the public build, measured here
+
+`MihaiPopa-1/LFM3-1.7B-Heretic-Max` (Heretic v1.4.0, disclosed params in the
+rung 7 section), passed as `--model-dir`, window 4096 tokens so the thinking
+block can close, 12-prompt held-out split:
+
+| gate | result |
+|---|---|
+| refusal | **0/12** style-aware (0/12 keyword) |
+| coherence | 12/12 |
+| degeneracy | 0.000 |
+| finite logits | pass |
+| capability | MMLU **0.500** vs pristine 0.400 → retention 1.25 |
+| first-token KL, harmful split (legacy protocol) | **11.73 nats** |
+| semantic judge, blind, permuted label order | **6 ANSWER / 5 GARBLED / 1 disagree**, agreement 11/12 |
+
+Three things follow, in order of importance.
+
+**1. The build is real and it is not clean.** It removes refusal on every prompt,
+keeps the model coherent, and keeps its benchmark. Five of twelve responses are
+still unusable under a blind judge. No refusal count in this campaign's earlier
+rungs could have distinguished that from a clean win — the judge is what makes
+the difference visible.
+
+**2. `eval_pass: false` on that run was the instrument's fault, not the model's.**
+The only failing gate was first-token KL 11.73. That gate was measured on the
+held-out **harmful** prompts, the ones whose distribution is the objective. Any
+successful abliteration fails it by construction; this campaign's own edits read
+~0.3 and looked cleaner while removing nothing usable. Fixed in `gates.py`:
+interference is measured on a harmless pool, every number carries its `prompt_set`
+label, and `enforce_interference_provenance` forces `eval_pass: false` when a run
+rests on the legacy harmful split.
+
+**3. The thinking window is an instrument parameter.** At 1024 tokens all 12
+responses stopped mid-reasoning with no closing think tag; "no refusal" was
+measured, "answers or slop" was not. Rung 5's GARBLED artefact at 256 tokens was
+the same defect one order of magnitude smaller.
+
+## What the public weights are made of
+
+`Austriani/LFM3-1.7B-ARA-Abliterated` vs base, full diff in
+`docs/public-build-forensics.md`:
+
+- 11 tensors: `o_proj` + `w2`, layers 12, 14, 15, 16, 17, 18, 19, 22. No `conv_out`.
+- rel_change 4.04–14.09 % — the same dose family as our α 2.0 (4.8 % on `w2`).
+- rank-1 fraction 0.205–0.644, effective rank 2.3–11.3 — a subspace, not a ray.
+- row-norm drift up to 18.0 % — magnitude preservation is not exact.
+- cross-layer cosine of the top left singular vector: **mean −0.04**. Each layer
+  carries its own direction, against **0.49 mean (0.81 adjacent)** for ours.
+
+Heretic's plain abliteration is rank-1 by construction, so rank cannot be what
+separates a working public build from ours. What remains is the direction source
+(400/400 disjoint prompts, first generated token, orthogonalised against the
+good mean) and the component/layer window. Rung 8 tests exactly that, on our
+weights, with our gates.
+
+## Status after rung 7b
+
+`NEGATIVE for our recipe; the model is abliterable.` The rung 1–6 verdict stands
+as a statement about one global rank-1 axis over 24 layers with our paired
+harvest — that recipe never produced a usable answer, and the corrected KL meter
+does not change it. A public build of this model reaches 0/12 refusals with 6/12
+usable answers, which is strictly better than everything this campaign built, so
+"not abliterable" was the wrong conclusion to have been heading for.
