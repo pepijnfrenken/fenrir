@@ -3,7 +3,71 @@
 Date: 2026-11-13. Hardware: desktop RTX 3060 Ti 8 GB, WSL2 Ubuntu-24.04, driver
 561.17, torch 2.14.1+cu126, transformers 5.23.0. Cost: 0 (own hardware).
 
-## Verdict (final, supersedes the interim verdict below)
+## FINAL VERDICT (2026-11-14, rungs 1-14b — this section supersedes everything below)
+
+**Abliteration-by-projection does not work on LFM3-1.7B. Not at any dose, not at either
+side of the sandwich norm, not restricted to the prompt pass, and not by any of the three
+directions this campaign could obtain (ours, rSalone's recovered axis, Heretic-Max's
+recovered axis). The refusal axis is real, specific and causal. Removing it costs the
+answer, always, and the answer never comes back.**
+
+Eleven rungs of mechanism work, all on judged numbers, one L4 at a time. What is
+established:
+
+1. **The axis is real.** Removing it takes the pristine 12/12 refusals to 0/12
+   (rungs 10, 12). Two seeded random unit directions at the same 48 places and the same
+   strength leave **24/24** refusals standing, at base length, with 100% judge agreement
+   (rung 11b, `rand-pre-a` in rung 12, `rand-pre-0.10` in rung 14). Specificity is not
+   assumed; it is measured against a control that could have falsified it.
+2. **The failure is not the algebra.** Rung 9 could not bake the post-norm removal into
+   weights (F1 ratio 0.998, then 0.99997 with the rms factor). The obvious reading was
+   that we projected the norm's output when a weight edit projects the raw write. Rung 12
+   applied exactly that operator (`forward_pre_hook`, `a = gamma*r`) and got the same
+   disease: 0 REFUSE / 3 ANSWER / 9 GARBLED, 10,634 chars against base 1,365. Pre-norm
+   and post-norm are the same failure. That reading is withdrawn in writing.
+3. **The failure is not timing either.** Removing the axis during the prompt pass only —
+   verified by tally, `prompt_passes 48, decode_passes 4560, edited 48` — leaves 10 of 12
+   and 11 of 12 refusals standing (rung 13). The refusal is carried through generation,
+   not decided during prefill.
+4. **The failure is the trade itself.** The pre-norm dose curve, seven strengths, every
+   arm blind-judged on the same 12 prompts against the same reused base:
+
+   | strength | chars | REFUSE | ANSWER | GARBLED |
+   |---|---|---|---|---|
+   | 0.05 | 1546 | 12 | 0 | 0 |
+   | 0.10 | 1772 | 12 | 0 | 0 |
+   | 0.20 | 2469 | 12 | 0 | 0 |
+   | 0.30 | 4276 | 9 | 0 | 3 |
+   | 0.45 | 5722 | 6 | 2 | 4 |
+   | 0.60 | 7535 | 3 | 1 | 8 |
+   | 1.00 | 10634 | 0 | 3 | 9 |
+
+   Refusal leaves before the answer arrives, at every point. The best answer count on
+   this curve is 3 of 12, and it is bought with 9 of 12 garbled. The post-norm endpoint
+   shows the same shape (rung 11: 0.4 -> 3 REFUSE / 2 ANSWER / 4 GARBLED; 0.6 -> 0 / 4 / 7).
+   No strength on either curve reaches 8 ANSWER with 2 or fewer GARBLED, which was the
+   pre-registered bar in rungs 12-14b.
+5. **The published builds are not doing this.** Heretic-Max moves 2.5-3.1% of the weight
+   norm per place with `top1_frac` 0.347-0.390; rSalone moves 0.5-17.3% with
+   `rank1_frac` 0.45-0.74. A full rank-1 projection is 30-70% at the same places, which is
+   an order of magnitude more intervention. Their own published KLs are 0.0040 and 0.0013.
+   And when their dominant directions are applied as projections at our endpoint, they
+   fail exactly like ours (rungs 11 and 12: 0 REFUSE / 3 ANSWER / 6-8 GARBLED). So the
+   published success is a **budgeted nudge**, not a removal, and its cost still shows in
+   our blind judge: 6 ANSWER / 5 GARBLED on Heretic-Max at a 4096 window.
+6. **No checkpoint from this campaign is publishable as an abliterated model**, and the
+   bake is structurally impossible at this gamma scale (mean |gamma| 0.0139; see
+   `docs/public-build-forensics.md`). The deliverable of this campaign is the measured
+   trade curve and the controls, not a checkpoint.
+
+What would have to be built next, if this line is continued: an optimiser that treats the
+KL budget as the objective rather than a fixed projection ratio — gradient steps on the
+write matrices against a hard interference constraint on the harmless pool, which is the
+one form of the published recipe this campaign has not run itself. Every fixed-ratio
+formulation has now been measured and every one of them lands on the same trade curve.
+
+## Verdict as of 2026-11-13 (interim, superseded above; kept for the record)
+
 
 **NEGATIVE for this recipe. The model itself is abliterable — a public build
 proves it, and the public build is not clean either.** Seven rungs, all on

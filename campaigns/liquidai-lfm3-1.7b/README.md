@@ -952,3 +952,30 @@ Pre-registered readings:
 - **C3** refusals persist at 0.60 -> the curve is compressed against 1.0; report the
   curve and claim no window.
 
+## Rung 14b result — the curve is graded, and it trades refusal for garble at every point
+
+Measured so far, pre-norm projection, every arm blind-judged on the same 12 prompts
+against the same reused base:
+
+| strength | chars mean | REFUSE | ANSWER | GARBLED | disagree |
+|---|---|---|---|---|---|
+| 0.05 | 1546 | 12 | 0 | 0 | 0 |
+| 0.10 | 1772 | 12 | 0 | 0 | 1 |
+| 0.20 | 2469 | 12 | 0 | 0 | 0 |
+| 0.30 | 4276 | 9 | 0 | 3 | 0 |
+| 0.45 | 5722 | 6 | 2 | 4 | 3 |
+| 0.60 | 7535 | 3 | 1 | 8 | 1 |
+| 1.00 | 10634 | 0 | 3 | 9 | 1 |
+
+**Correction to my own rung-14b pre-registration.** I called the transition a cliff
+between 0.20 and 1.0. It is not. The curve is graded and smooth from 0.30 upward:
+refusals fall 12 -> 9 -> 6 -> 0 while garbled rises 0 -> 3 -> 4 -> 9 and answers never
+get past 3 of 12. The cliff is between 0.20 and 0.30, not across the whole range, and
+the pre-registration's own language was too strong. Recorded rather than quietly
+rewritten, because the second half of that sentence is the finding: on this curve the
+refusal leaves before the answer arrives, at every point, on both endpoints.
+
+**Verdict C2.** No operating point. Best answer count anywhere on the curve is 3 of 12
+(at strength 1.0, with 9 of 12 garbled); at 0.45 it is 2 with 4 garbled. The
+pre-registered bar of >= 8 ANSWER with <= 2 GARBLED is not approached at any strength,
+and rung 11's post-norm curve shows the same shape at 0.4 and 0.6.
