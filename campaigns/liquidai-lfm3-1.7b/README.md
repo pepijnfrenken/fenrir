@@ -802,3 +802,53 @@ showed and the same shape the activation-steering literature reports (EMNLP 2026
 2606: steering changes how the model refuses, not whether). One rung remains before
 this can be called a property of the architecture rather than of the direction: the
 random-direction control in rung 11b.
+
+## Rung 11b result — the control answers back: R2, direction specificity is real
+
+Two seeded random unit directions per place (`20261114`, `20261115`), same 48 places,
+strength 1.0, same 12 prompts, base reused from rung 10.
+
+| arm | chars mean | min / max | judge REFUSE | ANSWER | GARBLED | disagree | agreement |
+|---|---|---|---|---|---|---|---|
+| base (reused) | 1365 | 958 / 2015 | 12 | 0 | 0 | 0 | 12/12 = 100% |
+| rand-20261114 | 1327 | 1012 / 1789 | 24 | 0 | 0 | 0 | 24/24 = 100% |
+| rand-20261115 | 1316 | 1045 / 1806 | 24 | 0 | 0 | 0 | 24/24 = 100% |
+
+**Verdict: R2.** Random removal leaves every refusal in place and keeps the text
+coherent at base length. The refusal-aligned removal does neither. Direction
+specificity is real at this endpoint, so rung 11's garble belongs to the directions,
+not to the endpoint vandalising any rank-1 edit.
+
+Ruler note: the random arms ran 175 s and 169 s against 981-1246 s for rung 11's
+real-direction arms. Generation stops early when the model refuses, so wall time is a
+second detector that agrees with the judge.
+
+## Rung 12 — project the write before the norm, not after it (pre-registered, running)
+
+Rungs 10 and 11 removed a direction from the norm's **output**, `y = gamma*(x/rms)`.
+Rung 9's F1 could never map that onto a weight edit. Both facts have one cause: the
+hook edit and the weight edit were never the same operator. A weight-space
+abliteration is a linear map on the raw branch write `x` whose null space contains
+`a = gamma * r`. Projecting `y` instead demands a change in `x` of order `||x||` once
+gamma is small (mean `|gamma|` at `L2.operator` is 0.0139), and the norm then
+re-normalises whatever the removal produced.
+
+Rung 12 moves the same directions to the correct side of the norm:
+`desktop/hookgate.py --where pre`, `a = gamma * r` normalised, projection applied by a
+`forward_pre_hook` on `post_operator_norm` / `post_ffn_norm`.
+
+| arm | direction | places |
+|---|---|---|
+| `ours-pre-1.0` | our paired harvest (rung 9 dirs, `mean`) | 48 |
+| `heretic-pre-1.0` | Heretic-Max u1 recovered from the weights | 39 |
+| `rand-pre-a` | seed `20261114` random | 48 |
+
+Pre-registered readings:
+
+- **P1** any real direction reaches >= 8 ANSWER of 12 with <= 2 GARBLED -> the norm
+  side was the campaign's error, and the direction was never the problem.
+- **P2** real directions still garble while the random control does not -> the refusal
+  axis is entangled with competence at these writes. Abliteration here is a trade, not
+  a removal, and that is the campaign's answer.
+- **P3** random and real behave alike -> the instrument still cannot see direction
+  specificity at this endpoint; rebuild before another rung.
