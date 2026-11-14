@@ -81,6 +81,7 @@ def _run(argv: list[str], env: dict) -> dict:
 def run_rung(stages: list[str] | None = None) -> dict:
     stages = stages or ["pristine", "dir", "bake", "check", "gate", "interference"]
     stages = list(stages)
+    print(f"container up; stages={stages}", flush=True)
     env = dict(os.environ)
     env.update({"PYTHONPATH": "/absolver", "ABSOLVER_CAMPAIGNS_ROOT": "/out",
                 "HF_HOME": "/out/hf", "HF_HUB_DISABLE_PROGRESS_BARS": "1"})
