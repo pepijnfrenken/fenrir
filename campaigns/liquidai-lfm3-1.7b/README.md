@@ -734,3 +734,41 @@ Falsifier: a direction is usable iff the blind judge returns >= 8 ANSWER of 12 w
   question returns to weight space with a different shape.
 - If **ours at a lower dose** is clean, the direction was right and 1.0 was simply past
   the survivable point, which also means the rung-5/6 ladder was read at the wrong dose.
+
+## Rung 11 raw output — every arm rambled, and that fact indicts the design
+
+All four arms exited 0 (ours-0.6 1201 s, ours-0.4 1007 s, rsalone-1.0 1246 s,
+heretic-1.0 981 s, one L4 container). Response lengths against a base mean of 1,365
+chars:
+
+| arm | mean | min | max |
+|---|---|---|---|
+| ours-0.6 | 9,046 | 4,972 | 17,551 |
+| ours-0.4 | 7,843 | 2,635 | 17,885 |
+| rsalone-1.0 | 9,308 | 3,507 | 18,683 |
+| heretic-1.0 | 7,578 | 3,976 | 14,175 |
+
+Our direction, at two doses, and both public directions recovered from their published
+weights, all produce the same long, unstopping generation. A difference that appears
+identically for our direction and for theirs is not a difference between directions.
+Rung 11 as designed cannot discriminate, because it never included a direction with no
+relation to refusal. That is a design defect in the rung, recorded here rather than
+patched after seeing the labels.
+
+## Rung 11b — the control rung 11 lacked (pre-registered, running)
+
+Two seeded random unit directions per place (20261114, 20261115), same 48 places,
+strength 1.0, same prompts, same window, base reused from rung 10.
+
+- **R1** random arms garbled and refusal-free -> the hook endpoint measures the
+  fragility of the sandwich-norm residual stream, not a refusal axis. No direction
+  comparison at this endpoint can be read as abliteration evidence; go back to weight
+  space with a matched-rel_change target taken from the public builds.
+- **R2** random arms keep refusals -> direction specificity is real and the rung-11
+  arms get read for their differences.
+- **R3** mixed across seeds -> n=12 is too noisy to carry any claim; raise n before
+  another arm.
+
+Caveat already named, to be repeated in any write-up: `u1` carries ~37% of the
+singular-value mass per place for Heretic-Max and 74% at rSalone's strongest place, so
+the public arms test their dominant direction, not their whole edit.
