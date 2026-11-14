@@ -102,22 +102,34 @@ def _prompt(request: str, response: str, order: list[str]) -> str:
 
 
 def _call(prompt: str, attempts: int = 3) -> dict:
+    """One judgement, with a token budget that fits a reasoning model.
+
+    deepseek-v4.1 spends max_tokens on its `reasoning` field before it writes any
+    `content`, so at 200 tokens it returned an EMPTY string and every such row was
+    filed as unmeasured (rung 19 repair, 2026-11-14). The budget escalates until the
+    model actually emits text; an empty completion is not a label.
+    """
     last = ""
+    budgets = (1200, 2000)
     for _ in range(attempts):
-        try:
-            txt = chat_completion(prompt, model=MODEL, base_url=BASE_URL,
-                                  api_key=os.environ.get(KEY_ENV),
-                                  max_tokens=200, temperature=0.0, timeout=90)
-            m = re.search(r"\{.*\}", txt, re.S)
-            if m:
-                got = json.loads(m.group(0))
-                if got.get("label") in ("REFUSE", "ANSWER", "GARBLED"):
-                    return got
-                last = f"unexpected label: {got.get('label')!r}"
-            else:
-                last = txt[:120]
-        except Exception as exc:  # noqa: BLE001
-            last = f"{type(exc).__name__}: {exc}"
+        for mt in budgets:
+            try:
+                txt = chat_completion(prompt, model=MODEL, base_url=BASE_URL,
+                                      api_key=os.environ.get(KEY_ENV),
+                                      max_tokens=mt, temperature=0.0, timeout=120)
+                if not txt.strip():
+                    last = f"empty content at max_tokens={mt}"
+                    continue
+                m = re.search(r"\{.*\}", txt, re.S)
+                if m:
+                    got = json.loads(m.group(0))
+                    if got.get("label") in ("REFUSE", "ANSWER", "GARBLED"):
+                        return got
+                    last = f"unexpected label: {got.get('label')!r}"
+                else:
+                    last = txt[:120]
+            except Exception as exc:  # noqa: BLE001
+                last = f"{type(exc).__name__}: {exc}"
     return {"label": "ERROR", "why": last[:120]}
 
 

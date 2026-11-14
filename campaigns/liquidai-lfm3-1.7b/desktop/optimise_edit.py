@@ -385,12 +385,102 @@ def stage_verify(a) -> int:
     return 0
 
 
+def stage_makeopt(a) -> int:
+    """Write an opt.json with ONE uniform strength, so bake/gate/verify can consume it.
+
+    Rung 19 found a working operating point at a fixed dose on the answer-position
+    harvest; this stage exists so that point can be baked without inventing an
+    optimiser result it never had.
+    """
+    from config import load_config
+
+    cfg = load_config(a.config)
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from hookgate import _held_out
+
+    blobs = torch.load(a.dirs, map_location="cpu", weights_only=False)["dirs"]
+    if a.position not in blobs:
+        raise SystemExit(f"{a.dirs} has positions {sorted(blobs)}, not {a.position!r}")
+    dirs = blobs[a.position]
+    win = _layer_window(a.layers)
+    w = {}
+    for key in dirs:
+        li = int(key.split(".")[0][1:])
+        if win is not None and li not in win:
+            continue
+        w[key] = float(a.strength)
+    out = {"position": a.position, "layers": a.layers or "", "w": w,
+           "strength": float(a.strength), "dirs": a.dirs,
+           "held_out": sorted(_held_out(cfg))}
+    Path(a.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(a.out).write_text(json.dumps(out, indent=1))
+    print(f"uniform strength {a.strength} over {len(w)} places ({a.position}); wrote {a.out}")
+    return 0
+
+
+def stage_benign(a) -> int:
+    """Interference on prompts whose behaviour must not move: KL(base || baked) + texts.
+
+    A refusal gate that passes while KL on harmless prompts is large has moved the
+    model, not removed a disposition. Both numbers go in one JSON, and the harmless
+    generations are written in the transcript schema so the same judge can read them.
+    """
+    from config import load_config
+    from prompts import DEFAULT_HARMLESS
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    cfg = load_config(a.config)
+    dev = a.device
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from hookgate import _held_out
+
+    held = set(_held_out(cfg))
+    prompts = [p for p in DEFAULT_HARMLESS if p not in held][: a.n_harmless]
+    tok = AutoTokenizer.from_pretrained(a.out_dir, trust_remote_code=True)
+    base = AutoModelForCausalLM.from_pretrained(MODEL_ID, dtype=torch.bfloat16,
+                                                trust_remote_code=True).to(dev).eval()
+    baked = AutoModelForCausalLM.from_pretrained(a.out_dir, dtype=torch.bfloat16,
+                                                 trust_remote_code=True).to(dev).eval()
+
+    def _logits(model, prompt):
+        from hookgate import _encode
+        ids = _encode(tok, prompt, dev, thinking=False)
+        with torch.no_grad():
+            lg = model(input_ids=ids).logits[0, -1].float()
+        return torch.log_softmax(lg, dim=-1)
+
+    kl, texts = [], []
+    with torch.no_grad():
+        for p in prompts:
+            lp_b, lp_e = _logits(base, p), _logits(baked, p)
+            kl.append(float((lp_b.exp() * (lp_b - lp_e)).sum()))
+            ids = _enc(tok, p, dev)
+            gen = baked.generate(input_ids=ids, max_new_tokens=a.max_new, do_sample=False,
+                                 temperature=None, top_p=None,
+                                 pad_token_id=tok.pad_token_id or tok.eos_token_id)
+            texts.append(tok.decode(gen[0, ids.shape[-1]:], skip_special_tokens=True))
+    mean_kl = sum(kl) / max(1, len(kl))
+    out = {"endpoint": "baked", "baked_from": a.out_dir, "n_prompts": len(prompts),
+           "kl_first_answer": {"mean": round(mean_kl, 6), "max": round(max(kl), 6),
+                               "per_prompt": [round(x, 6) for x in kl]},
+           "generations": [{"prompt": p, "response": t, "arm": "baked-benign",
+                            "gate": "harmless"} for p, t in zip(prompts, texts)],
+           "config": a.config, "thinking": False}
+    Path(a.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(a.out).write_text(json.dumps(out, indent=1))
+    print(f"benign interference: KL mean {mean_kl:.5f} max {max(kl):.5f} over {len(prompts)}")
+    print(f"wrote {a.out}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("stage", choices=["optim", "gate", "bake", "verify"])
+    ap.add_argument("stage", choices=["makeopt", "optim", "gate", "bake", "verify", "benign"])
     ap.add_argument("--config", default="models/lfm3-1.7b-r8.yaml")
     ap.add_argument("--dirs", default="/out/r9/r9-directions.pt")
     ap.add_argument("--position", default="mean", choices=["mean", "last"])
+    ap.add_argument("--strength", type=float, default=1.5,
+                    help="fixed dose for the makeopt stage")
     ap.add_argument("--opt", default="/out/r18/opt.json")
     ap.add_argument("--out", default="")
     ap.add_argument("--out-dir", default="/out/r18/baked")
@@ -414,6 +504,10 @@ def main() -> int:
         return stage_gate(a)
     if a.stage == "bake":
         return stage_bake(a)
+    if a.stage == "makeopt":
+        return stage_makeopt(a)
+    if a.stage == "benign":
+        return stage_benign(a)
     return stage_verify(a)
 
 
