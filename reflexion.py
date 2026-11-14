@@ -276,8 +276,8 @@ def reflexion_node(state: AbliterationState) -> dict:
             try:
                 kb_llm = chat_completion(
                     kb_prompt,
-                    model=getattr(cfg, "judge_model", None) or "deepseek-v4-flash",
-                    base_url=getattr(cfg, "judge_base_url", None) or "https://freeinference.org/v1",
+                    model=getattr(cfg, "judge_model", None) or "deepseek/deepseek-v4.1-flash-fast",
+                    base_url=getattr(cfg, "judge_base_url", None) or "https://api.commandcode.ai/provider/v1",
                     api_key=getattr(cfg, "judge_api_key", None) or None,
                     max_tokens=500,
                     temperature=0.0,

@@ -1137,8 +1137,8 @@ def sweep_node(state: AbliterationState) -> dict[str, Any]:
         from llm_api import chat_completion
         from prompts import JUDGE_PROMPT_TEMPLATE
 
-        jmodel = getattr(cfg, "judge_model", "deepseek-v4-flash")
-        jbase = getattr(cfg, "judge_base_url", None) or "https://freeinference.org/v1"
+        jmodel = getattr(cfg, "judge_model", "deepseek/deepseek-v4.1-flash-fast")
+        jbase = getattr(cfg, "judge_base_url", None) or "https://api.commandcode.ai/provider/v1"
         jkey = getattr(cfg, "judge_api_key", None) or None
         jmax = getattr(cfg, "judge_max_tokens", 200)
         n_judge_prompts = min(getattr(cfg, "sweep_judge_prompts", 5), len(test_prompts))

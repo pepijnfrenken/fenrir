@@ -18,18 +18,52 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_BASE_URL = "https://freeinference.org/v1"
+# The judge is a repo-wide instrument. It moved off the free one-slot endpoint after
+# a 429 storm turned four concurrent judge processes into unmeasured rows (rung 17).
+DEFAULT_BASE_URL = "https://api.commandcode.ai/provider/v1"
+DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash-fast"
 
 
-def _resolve_key(cfg: Any) -> str | None:
-    """Resolve the API key: config field first, then env vars."""
+_ENV_FILE_KEYS = ("COMMANDCODE_API_KEY", "FREEINFERENCE_API_KEY")
+
+
+def _env_file_key(names: tuple[str, ...]) -> str | None:
+    """Read one of `names` out of ~/.hermes/.env.
+
+    The commandcode key lives in the Hermes env file, not in a shell profile, so a
+    subprocess launched from cron would otherwise score every row as unmeasured.
+    """
+    try:
+        with open(os.path.expanduser("~/.hermes/.env")) as fh:
+            for line in fh:
+                k, _, v = line.strip().partition("=")
+                if k in names and v:
+                    return v.strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return None
+
+
+def _resolve_key(cfg: Any, base_url: str = "") -> str | None:
+    """Resolve the API key for `base_url`: config field first, then that host's env var.
+
+    Order is host-aware because a JUDGE_API_KEY left over from the free endpoint now
+    authenticates nothing at commandcode: key and endpoint have to move together or
+    every row comes back 401 and is reported as unmeasured.
+    """
     key = getattr(cfg, "judge_api_key", None)
     if key:
         return key
-    for env_name in ("JUDGE_API_KEY", "FREEINFERENCE_API_KEY", "OPENAI_API_KEY"):
+    if "commandcode" in base_url:
+        order = ("COMMANDCODE_API_KEY", "JUDGE_API_KEY")
+    elif "freeinference" in base_url:
+        order = ("FREEINFERENCE_API_KEY", "JUDGE_API_KEY")
+    else:
+        order = ("JUDGE_API_KEY", "COMMANDCODE_API_KEY", "FREEINFERENCE_API_KEY", "OPENAI_API_KEY")
+    for env_name in order + ("OPENAI_API_KEY",):
         if os.environ.get(env_name):
             return os.environ[env_name]
-    return None
+    return _env_file_key(tuple(n for n in order if n in _ENV_FILE_KEYS))
 
 
 def chat_completion(
@@ -48,7 +82,7 @@ def chat_completion(
     scoring, mirroring the old OMP behaviour.
     """
     base_url = (base_url or DEFAULT_BASE_URL).rstrip("/")
-    api_key = api_key or _resolve_key(None)
+    api_key = api_key or _resolve_key(None, base_url)
 
     body = {
         "model": model,

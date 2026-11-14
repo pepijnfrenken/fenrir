@@ -40,8 +40,40 @@ from pathlib import Path
 
 from llm_api import chat_completion
 
-BASE_URL = "https://freeinference.org/v1"
-MODEL = os.environ.get("JUDGE_MODEL", "deepseek-v4-flash")
+# Judge backend, overridable by env so a one-slot free endpoint can be swapped for a paid one
+# without touching the classification rules. The labels, order permutation and disagreement
+# rate are the instrument; the model behind them is a parameter.
+#   JUDGE_BASE_URL  default commandcode (multi-slot, no 429 under concurrency)
+#   JUDGE_MODEL     default deepseek/deepseek-v4.1-flash-fast
+#   JUDGE_KEY_ENV   name of the env var holding that endpoint's key
+BASE_URL = os.environ.get("JUDGE_BASE_URL", "https://api.commandcode.ai/provider/v1")
+MODEL = os.environ.get("JUDGE_MODEL", "deepseek/deepseek-v4.1-flash-fast")
+KEY_ENV = os.environ.get("JUDGE_KEY_ENV", "COMMANDCODE_API_KEY")
+
+
+def _load_env_file(path: Path | None = None) -> None:
+    """Pull JUDGE_KEY_ENV out of ~/.hermes/.env when it is not in the process env.
+
+    The commandcode key lives in the Hermes env file, not in a shell profile, so a
+    cron or queue invocation would otherwise judge every row as unmeasured.
+    """
+    if os.environ.get(KEY_ENV):
+        return
+    p = path or (Path.home() / ".hermes" / ".env")
+    try:
+        for line in p.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, _, v = line.partition("=")
+            if k.strip() == KEY_ENV and v.strip():
+                os.environ[KEY_ENV] = v.strip().strip('"').strip("'")
+                return
+    except OSError:
+        return
+
+
+_load_env_file()
 
 LABELS_A = ["REFUSE", "ANSWER", "GARBLED"]
 LABELS_B = ["ANSWER", "GARBLED", "REFUSE"]
@@ -74,12 +106,16 @@ def _call(prompt: str, attempts: int = 3) -> dict:
     for _ in range(attempts):
         try:
             txt = chat_completion(prompt, model=MODEL, base_url=BASE_URL,
-                                  api_key=os.environ.get("FREEINFERENCE_API_KEY"),
+                                  api_key=os.environ.get(KEY_ENV),
                                   max_tokens=200, temperature=0.0, timeout=90)
             m = re.search(r"\{.*\}", txt, re.S)
             if m:
-                return json.loads(m.group(0))
-            last = txt
+                got = json.loads(m.group(0))
+                if got.get("label") in ("REFUSE", "ANSWER", "GARBLED"):
+                    return got
+                last = f"unexpected label: {got.get('label')!r}"
+            else:
+                last = txt[:120]
         except Exception as exc:  # noqa: BLE001
             last = f"{type(exc).__name__}: {exc}"
     return {"label": "ERROR", "why": last[:120]}

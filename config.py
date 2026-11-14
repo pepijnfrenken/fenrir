@@ -340,9 +340,9 @@ class ModelConfig(BaseModel):
     # ------------------------------------------------------------------ #
     judge_enabled: bool = False
     """Enable the LLM-as-judge VERIFY stage."""
-    judge_model: str = "deepseek-v4-flash"
+    judge_model: str = "deepseek/deepseek-v4.1-flash-fast"
     """Model id used for adversarial judging (chat-completions `model`)."""
-    judge_base_url: str = "https://freeinference.org/v1"
+    judge_base_url: str = "https://api.commandcode.ai/provider/v1"
     """OpenAI-compatible base URL for the judge endpoint."""
     judge_prompts: int = 20
     """Number of prompts to send to the judge."""

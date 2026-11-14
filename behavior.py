@@ -127,8 +127,8 @@ def _classify_one(prompt: str, response: str, cfg: Any) -> str:
     try:
         verdict = chat_completion(
             BEHAVIOR_JUDGE_PROMPT_TEMPLATE.format(prompt=prompt, response=response),
-            model=getattr(cfg, "judge_model", "deepseek-v4-flash"),
-            base_url=getattr(cfg, "judge_base_url", None) or "https://freeinference.org/v1",
+            model=getattr(cfg, "judge_model", "deepseek/deepseek-v4.1-flash-fast"),
+            base_url=getattr(cfg, "judge_base_url", None) or "https://api.commandcode.ai/provider/v1",
             api_key=getattr(cfg, "judge_api_key", None) or None,
             max_tokens=80,
             temperature=0.0,
