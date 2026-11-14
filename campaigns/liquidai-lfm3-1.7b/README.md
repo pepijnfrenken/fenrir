@@ -852,3 +852,37 @@ Pre-registered readings:
   a removal, and that is the campaign's answer.
 - **P3** random and real behave alike -> the instrument still cannot see direction
   specificity at this endpoint; rebuild before another rung.
+
+## Rung 12 result — P2. The side of the norm was not the error, and that closes the algebra question
+
+`desktop/hookgate.py --where pre` projects the raw branch write along `a = gamma * r`,
+which is the operator a weight-space abliteration implements. Same 12 prompts, same
+4096 window, base reused from rung 10. Judge is blind, two permuted calls per item.
+
+| arm | chars mean | judge (hook half, n=12) REFUSE / ANSWER / GARBLED | disagree | agreement |
+|---|---|---|---|---|
+| base (reused) | 1365 | 12 / 0 / 0 | 0 | 12/12 = 100% |
+| ours-pre-1.0 | 10634 | 0 / 3 / 9 | 1 | 11/12 = 91.7% |
+| heretic-pre-1.0 | 8143 | 0 / 3 / 6 | 3 | 21/24 = 87.5% |
+| rand-pre-a | 1439 | 0 / 0 / 0 (24 of 24 REFUSE over base+rand) | 0 | 24/24 = 100% |
+
+**Verdict P2.** The pre-norm projection behaves like the post-norm projection: refusal
+gone, competence gone, output three to eight times base length. Two independent
+directions do it; a seeded random direction does nothing at all. So the previously open
+claim in `REPORT.md` - that the campaign's error was projecting in the wrong space -
+is withdrawn. There was no wrong space. Removing a refusal-aligned axis at these 48
+writes destroys usable generation, at either side of the norm, at any strength that
+removes the refusals.
+
+The heretic arm also produced the campaign's first arm to sit inside judge noise: 3
+disagreements of 24 against 0-1 everywhere else. Recorded as a ruler reading, not
+corrected by hand.
+
+Consequence for the published builds: Heretic-Max changes weights by 2.5-3.1% with
+`top1_frac` 0.347-0.390 and rSalone by 0.5-17.3% with `rank1_frac` 0.45-0.74. A full
+rank-1 projection is roughly 30-70% of the weight norm at these places, an order of
+magnitude more than either build applies. Their edits are nudges, not projections, and
+their own published KLs (0.0040, 0.0013) say so. That is the last hypothesis standing
+after this rung, and rungs 5/6 already showed the low-dose end of the ladder fails too
+at the post-norm endpoint - it has not yet been tested at the pre-norm endpoint with a
+judge rather than a keyword detector.
